@@ -218,7 +218,7 @@ export interface RuleEvaluateRequest {
     facing_direction24?: Direction24Code;
     total_floors?: number;
     current_floor?: number;
-    house_index?: number;
+    room_index?: number;
     room_count?: number;
     house_area_m2: number;
     mingtang_area_m2: number;

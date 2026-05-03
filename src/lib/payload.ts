@@ -1,3 +1,7 @@
+// API payload builders.
+// Wire field names must match backend_api_contract.md — when renaming UI fields,
+// always check whether the API contract uses a different name.
+// See: ../fengshui/docs/backend_api_contract.md
 import { BAGUA_OPTIONS, DIRECTION24_OPTIONS, WUXING_OPTIONS } from "../constants";
 import type {
   BaguaCode,
@@ -238,7 +242,8 @@ export function createEvaluationRequest(
   );
   const totalFloors = parseOptionalPositiveInteger(inputs.house.total_floors);
   const currentFloor = parseOptionalPositiveInteger(inputs.house.current_floor);
-  const houseIndex = parseOptionalPositiveInteger(inputs.house.house_index);
+  // UI field: house_index → API wire field: room_index (see backend_api_contract.md)
+  const roomIndex = parseOptionalPositiveInteger(inputs.house.house_index);
   const roomCount = parseOptionalPositiveInteger(inputs.house.room_count);
 
   const payload: RuleEvaluateRequest = {
@@ -251,7 +256,7 @@ export function createEvaluationRequest(
       ...(facingDirection24 ? { facing_direction24: facingDirection24 } : {}),
       ...(totalFloors !== null ? { total_floors: totalFloors } : {}),
       ...(currentFloor !== null ? { current_floor: currentFloor } : {}),
-      ...(houseIndex !== null ? { house_index: houseIndex } : {}),
+      ...(roomIndex !== null ? { room_index: roomIndex } : {}),
       ...(roomCount !== null ? { room_count: roomCount } : {}),
       house_area_m2: sanitizeNumber(derived.house_area_m2),
       mingtang_area_m2: sanitizeNumber(derived.mingtang_area_m2),
@@ -285,7 +290,7 @@ export function createEvaluationRequest(
           facing_direction24: facingDirection24,
           total_floors: totalFloors,
           current_floor: currentFloor,
-          house_index: houseIndex,
+          room_index: roomIndex,
           room_count: roomCount
         },
         gregorian_date: inputs.temporal.gregorian_date,

@@ -222,11 +222,13 @@ Read first:
 
 ### Change API wiring
 
+Wire field names in payload builders must match the backend contract. The UI field name may differ from the API wire name — `payload.ts` is the mapping layer that must be reviewed independently.
+
 Read first:
 
 - `src/api/client.ts` or `src/api/temporal.ts`
 - `src/lib/payload.ts`
-- [../fengshui/docs/backend_api_contract.md](../fengshui/docs/backend_api_contract.md)
+- [../fengshui/docs/backend_api_contract.md](../fengshui/docs/backend_api_contract.md) — wire field inventory
 
 ## Related Docs
 
