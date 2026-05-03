@@ -382,13 +382,6 @@ export function loadDraft(): ProjectSnapshot | null {
   }
 }
 
-export function clearDraft(): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-  window.localStorage.removeItem(STORAGE_KEY);
-}
-
 export function exportProject(snapshot: ProjectSnapshot): void {
   const normalized = hydrateProjectSnapshot(snapshot);
   const blob = new Blob([JSON.stringify(normalized, null, 2)], { type: "application/json" });

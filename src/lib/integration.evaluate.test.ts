@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { evaluateBazhai, evaluateHouseholdBazhai, evaluateRules } from "../api/client";
+import { evaluateHouseholdBazhai, evaluateRules } from "../api/client";
 import { createDefaultEditorState, createDefaultInputState } from "../constants";
 import { deriveProjectState } from "./derivation";
 import { createEvaluationRequest } from "./payload";
@@ -47,41 +47,6 @@ describe("evaluateRules integration", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toContain("/api/v1/rules/evaluate");
     expect(result.not_evaluable_count).toBe(1);
     expect(result.findings[0]?.status).toBe("not_evaluable");
-  });
-
-  it("posts bazhai payload and returns compatibility response", async () => {
-    const mockResponse = {
-      year: 1990,
-      gender: "male",
-      gender_zh: "male_zh",
-      person_minggua: { minggua_code: "KAN", group: { group_code: "EAST4" } },
-      house_bagua: "KAN",
-      house_bagua_code: "KAN",
-      house_bagua_zh: "KAN_zh",
-      house_group: { group_code: "EAST4" },
-      group_match: true,
-      star_relation: { star_code: "FUWEI", star_name_en: "Fu Wei", is_auspicious: true },
-      overall_is_auspicious: true,
-      overall_label_zh: "auspicious_zh",
-      overall_label_en: "auspicious"
-    };
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => mockResponse
-    });
-
-    vi.stubGlobal("fetch", fetchMock);
-
-    const result = await evaluateBazhai("http://127.0.0.1:8000", {
-      year: 1990,
-      gender: "male",
-      house_bagua: "KAN"
-    });
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0]?.[0]).toContain("/api/v1/bazhai/person-house");
-    expect(result.overall_label_en).toBe("auspicious");
   });
 
   it("posts household bazhai payload and returns member results", async () => {

@@ -195,7 +195,7 @@ function toGanzhiCode(stem: HeavenlyStemCode | null, branch: EarthlyBranchCode |
   return `${stem}${branch}` as GanzhiCode;
 }
 
-export function monthBranchFromRuleMonth(ruleMonth: number): EarthlyBranchCode | null {
+function monthBranchFromRuleMonth(ruleMonth: number): EarthlyBranchCode | null {
   if (!Number.isInteger(ruleMonth) || ruleMonth < 1 || ruleMonth > 12) {
     return null;
   }

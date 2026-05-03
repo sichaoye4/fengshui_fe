@@ -46,8 +46,6 @@ Related docs:
 
 ## High-Signal Components
 
-- `components/BazhaiPanel.tsx`
-- `components/LiqiHousePanel.tsx`
 - `components/HouseLiqiWorkspace.tsx`
 - `components/TemporalPanel.tsx`
 - `components/HousePeriodPanel.tsx`
@@ -58,17 +56,11 @@ Related docs:
 - `components/FloorplanEditor.tsx`
 - `components/ExternalShaChecklist.tsx`
 
-Legacy-but-present:
-
-- `components/FundamentalSummaryPanel.tsx`
-  - not in the active main tab flow
-
 ## Safe To Ignore First
 
 - `testSetup.ts`
 - `vite-env.d.ts`
 - component tests unrelated to the area you are touching
-- `components/FundamentalSummaryPanel.tsx` unless working on legacy cleanup
 
 ## Key Invariants
 

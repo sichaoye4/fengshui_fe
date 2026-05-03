@@ -2,11 +2,9 @@ import { BAGUA_OPTIONS, DIRECTION24_OPTIONS, WUXING_OPTIONS } from "../constants
 import type {
   BaguaCode,
   BazhaiMissingField,
-  BazhaiPersonHouseRequest,
   DerivedState,
   Direction24Code,
   EditorState,
-  FundamentalMissingField,
   HouseholdBazhaiRequest,
   InputDraftState,
   RuleEvaluateRequest,
@@ -87,50 +85,6 @@ export function getBazhaiMissingFields(inputs: InputDraftState): BazhaiMissingFi
     missing.push("members.empty");
   }
   return missing;
-}
-
-export function getFundamentalMissingFields(inputs: InputDraftState): FundamentalMissingField[] {
-  const missing: FundamentalMissingField[] = [...getBazhaiMissingFields(inputs)];
-
-  if (!inputs.house.facing_bagua) {
-    missing.push("house.facing_bagua");
-  }
-  if (parseOptionalPositiveInteger(inputs.house.current_floor) === null) {
-    missing.push("house.current_floor");
-  }
-  if (parseOptionalPositiveInteger(inputs.house.room_index) === null) {
-    missing.push("house.room_index");
-  }
-
-  return missing;
-}
-
-export function createBazhaiRequest(inputs: InputDraftState): BazhaiPersonHouseRequest | null {
-  if (!inputs.house.sitting_bagua || inputs.members.length === 0) {
-    return null;
-  }
-
-  const member =
-    inputs.members.find((candidate) => candidate.is_primary_resident) ??
-    inputs.members.find((candidate) => {
-      const birthYear = parseOptionalInteger(candidate.birth_year);
-      return birthYear !== null && birthYear > 0 && normalizeGender(candidate.gender) !== null;
-    });
-  if (!member) {
-    return null;
-  }
-
-  const birthYear = parseOptionalInteger(member.birth_year);
-  const gender = normalizeGender(member.gender);
-  if (birthYear === null || gender === null) {
-    return null;
-  }
-
-  return {
-    year: birthYear,
-    gender,
-    house_bagua: inputs.house.sitting_bagua
-  };
 }
 
 export function createHouseholdBazhaiRequest(inputs: InputDraftState): HouseholdBazhaiRequest | null {

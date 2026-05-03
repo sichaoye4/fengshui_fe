@@ -1,6 +1,4 @@
 import type {
-  BazhaiPersonHouseRequest,
-  BazhaiPersonHouseResponse,
   HouseholdBazhaiRequest,
   HouseholdBazhaiResponse,
   RuleEvaluateRequest,
@@ -38,17 +36,6 @@ async function postJson<TRequest, TResponse>(
 
 export async function evaluateRules(baseUrl: string, payload: RuleEvaluateRequest): Promise<RuleEvaluationResponse> {
   return postJson<RuleEvaluateRequest, RuleEvaluationResponse>(baseUrl, "/api/v1/rules/evaluate", payload);
-}
-
-export async function evaluateBazhai(
-  baseUrl: string,
-  payload: BazhaiPersonHouseRequest
-): Promise<BazhaiPersonHouseResponse> {
-  return postJson<BazhaiPersonHouseRequest, BazhaiPersonHouseResponse>(
-    baseUrl,
-    "/api/v1/bazhai/person-house",
-    payload
-  );
 }
 
 export async function evaluateHouseholdBazhai(

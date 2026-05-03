@@ -31,11 +31,11 @@ export function roomAreaM2(room: RoomPrimitive): number {
   return Math.abs(room.width * room.height);
 }
 
-export function isHorizontal(segment: SegmentPrimitive, tolerance = 1e-6): boolean {
+function isHorizontal(segment: SegmentPrimitive, tolerance = 1e-6): boolean {
   return Math.abs(segment.start.y - segment.end.y) <= tolerance;
 }
 
-export function isVertical(segment: SegmentPrimitive, tolerance = 1e-6): boolean {
+function isVertical(segment: SegmentPrimitive, tolerance = 1e-6): boolean {
   return Math.abs(segment.start.x - segment.end.x) <= tolerance;
 }
 

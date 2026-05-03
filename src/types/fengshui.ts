@@ -7,7 +7,6 @@ export type FindingStatus = "matched" | "not_matched" | "not_evaluable";
 export type FindingFilter = "all" | FindingStatus;
 
 export type BaguaCode = "QIAN" | "DUI" | "LI" | "ZHEN" | "XUN" | "KAN" | "GEN" | "KUN";
-export type BaguaCodeWithCenter = BaguaCode | "CENTER";
 export type WuXingCode = "WOOD" | "FIRE" | "EARTH" | "METAL" | "WATER";
 export type Direction24Code =
   | "REN"
@@ -248,12 +247,6 @@ export interface RuleEvaluateRequest {
   };
 }
 
-export interface BazhaiPersonHouseRequest {
-  year: number;
-  gender: OwnerGender;
-  house_bagua: BaguaCode;
-}
-
 export interface BazhaiPersonHouseResponse {
   year: number;
   gender: OwnerGender;
@@ -328,12 +321,6 @@ export interface HouseholdBazhaiResponse {
 export type BazhaiMissingField =
   | "members.empty"
   | "house.sitting_bagua";
-
-export type FundamentalMissingField =
-  | BazhaiMissingField
-  | "house.facing_bagua"
-  | "house.current_floor"
-  | "house.room_index";
 
 export type TabFindingFilterState = {
   structure: FindingFilter;

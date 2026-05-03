@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultEditorState, createDefaultInputState } from "../constants";
 import {
-  createBazhaiRequest,
   createEvaluationRequest,
   createHouseholdBazhaiRequest,
   getBazhaiMissingFields,
-  getFundamentalMissingFields,
   hashPayload
 } from "./payload";
 import { deriveProjectState } from "./derivation";
@@ -121,12 +119,6 @@ describe("createEvaluationRequest", () => {
       }
     ];
 
-    const bazhaiRequest = createBazhaiRequest(inputs);
-    expect(bazhaiRequest).toEqual({
-      year: 1990,
-      gender: "male",
-      house_bagua: "KAN"
-    });
     expect(createHouseholdBazhaiRequest(inputs)).toEqual({
       house_bagua: "KAN",
       members: [
@@ -147,24 +139,6 @@ describe("createEvaluationRequest", () => {
 
     const missing = getBazhaiMissingFields(inputs);
     expect(missing).toContain("members.empty");
-    expect(createBazhaiRequest(inputs)).toBeNull();
     expect(createHouseholdBazhaiRequest(inputs)).toBeNull();
-  });
-
-  it("reports fundamental missing fields for shared context guidance", () => {
-    const inputs = createDefaultInputState();
-    inputs.house.facing_bagua = "";
-    inputs.house.current_floor = "";
-    inputs.house.room_index = "";
-
-    const missing = getFundamentalMissingFields(inputs);
-    expect(missing).toEqual(
-      expect.arrayContaining([
-        "members.empty",
-        "house.facing_bagua",
-        "house.current_floor",
-        "house.room_index"
-      ])
-    );
   });
 });
