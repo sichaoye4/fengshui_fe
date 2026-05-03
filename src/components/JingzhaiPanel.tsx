@@ -2,11 +2,66 @@ import { t, type TranslationKey } from "../i18n/ui";
 import type {
   JingzhaiAffectedDecade,
   JingzhaiDecadeAnalysis,
+  JingzhaiDoorAnalysis,
   JingzhaiFullResponse,
   JingzhaiPersonImpactPerson,
   Language,
 } from "../types/fengshui";
 import { CompactDetailGrid, type CompactDetailItem } from "./CompactDetailGrid";
+
+// ── Wuxing (五行) relationship helpers ──
+
+const WUXING_CANONICAL: Record<string, string> = {
+  WOOD: "WOOD", FIRE: "FIRE", EARTH: "EARTH", METAL: "METAL", WATER: "WATER",
+  木: "WOOD", 火: "FIRE", 土: "EARTH", 金: "METAL", 水: "WATER",
+};
+
+const WUXING_GENERATES: Record<string, string> = {
+  WOOD: "FIRE", FIRE: "EARTH", EARTH: "METAL", METAL: "WATER", WATER: "WOOD",
+};
+
+const WUXING_CONTROLS: Record<string, string> = {
+  WOOD: "EARTH", EARTH: "WATER", WATER: "FIRE", FIRE: "METAL", METAL: "WOOD",
+};
+
+function canonWuxing(el: string | null | undefined): string | null {
+  return el ? (WUXING_CANONICAL[el] ?? null) : null;
+}
+
+function getWuxingRelation(source: string, target: string): string | null {
+  const s = canonWuxing(source);
+  const t = canonWuxing(target);
+  if (!s || !t) return null;
+  if (s === t) return "比助";
+  if (WUXING_GENERATES[s] === t) return "生出";
+  if (WUXING_GENERATES[t] === s) return "生入";
+  if (WUXING_CONTROLS[s] === t) return "克出";
+  if (WUXING_CONTROLS[t] === s) return "克入";
+  return null;
+}
+
+function formatWuxingRelation(language: Language, sourceEl: string, targetEl: string): string {
+  const relation = getWuxingRelation(sourceEl, targetEl);
+  if (!relation) return "—";
+
+  const zhSource = WUXING_CANONICAL[sourceEl] ? (sourceEl.length <= 2 ? sourceEl : { WOOD: "木", FIRE: "火", EARTH: "土", METAL: "金", WATER: "水" }[WUXING_CANONICAL[sourceEl]!]) : sourceEl;
+  const zhTarget = WUXING_CANONICAL[targetEl] ? (targetEl.length <= 2 ? targetEl : { WOOD: "木", FIRE: "火", EARTH: "土", METAL: "金", WATER: "水" }[WUXING_CANONICAL[targetEl]!]) : targetEl;
+
+  if (language === "zh") {
+    if (relation === "比助") return `${zhSource}同${zhTarget}（比助）`;
+    const relChar = relation.startsWith("生") ? "生" : "克";
+    return `${zhSource}${relChar}${zhTarget}（${relation}）`;
+  }
+
+  const enNames: Record<string, string> = { WOOD: "Wood", FIRE: "Fire", EARTH: "Earth", METAL: "Metal", WATER: "Water" };
+  const s = enNames[canonWuxing(sourceEl) ?? ""] ?? sourceEl;
+  const t = enNames[canonWuxing(targetEl) ?? ""] ?? targetEl;
+  if (relation === "比助") return `${s} = ${t} (same element)`;
+  const action = relation.startsWith("生") ? "generates" : "controls";
+  return `${s} ${action} ${t} (${relation})`;
+}
+
+// ── Component ──
 
 interface Props {
   language: Language;
@@ -210,6 +265,74 @@ function JingzhaiPersonImpact({
   );
 }
 
+function JingzhaiDoorSection({
+  language,
+  doorAnalysis,
+  decade,
+}: {
+  language: Language;
+  doorAnalysis: JingzhaiDoorAnalysis;
+  decade: JingzhaiDecadeAnalysis;
+}): JSX.Element | null {
+  const recommendation = decade.door_recommendation;
+  const rootLabel = (code: string): string =>
+    language === "zh" ? code : code;
+
+  const doorRows = [
+    { key: "center_door" as const, label: t(language, "jingzhai.doorCenter" as TranslationKey) },
+    { key: "dragon_door" as const, label: t(language, "jingzhai.doorDragon" as TranslationKey) },
+    { key: "tiger_door" as const, label: t(language, "jingzhai.doorTiger" as TranslationKey) },
+  ];
+
+  return (
+    <article className="result-card compact-result-card">
+      <h4>{t(language, "jingzhai.doorAnalysis" as TranslationKey)}</h4>
+      {recommendation && (
+        <p className="jingzhai-door-recommendation">
+          <strong>{t(language, "jingzhai.recommendation" as TranslationKey)}: </strong>
+          {language === "zh" ? recommendation.rationale_zh : recommendation.rationale_en}
+        </p>
+      )}
+      <div className="findings-table-wrap jingzhai-table-wrap">
+        <table className="findings-table jingzhai-door-table">
+          <thead>
+            <tr>
+              <th>{t(language, "jingzhai.doorPosition" as TranslationKey)}</th>
+              <th>{t(language, "jingzhai.doorBagua" as TranslationKey)}</th>
+              <th>{t(language, "jingzhai.doorElement" as TranslationKey)}</th>
+              <th>{t(language, "jingzhai.doorRelation" as TranslationKey)}</th>
+              {recommendation && <th>{t(language, "jingzhai.doorScore" as TranslationKey)}</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {doorRows.map(({ key, label }) => {
+              const door = doorAnalysis[key];
+              if (!door) return null;
+              const scored = recommendation?.door_options?.find((o) => o.position === key);
+              return (
+                <tr
+                  key={key}
+                  className={
+                    recommendation?.recommended_keys?.includes(key)
+                      ? "jingzhai-door-recommended"
+                      : undefined
+                  }
+                >
+                  <td>{label}</td>
+                  <td>{rootLabel(door.bagua_zh ?? door.bagua)}</td>
+                  <td>{rootLabel(door.element)}</td>
+                  <td>{rootLabel(door.relation)}</td>
+                  {recommendation && <td>{scored?.score ?? "-"}</td>}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  );
+}
+
 export function JingzhaiPanel({ language, result }: Props): JSX.Element {
   if (!result) {
     return (
@@ -272,10 +395,33 @@ export function JingzhaiPanel({ language, result }: Props): JSX.Element {
               },
             ]}
           />
+          {/* Wuxing relationships for 宅体 attributes */}
+          <div className="jingzhai-wuxing-relations">
+            <h5 className="jingzhai-wuxing-title">{t(language, "jingzhai.wuxingRelations" as TranslationKey)}</h5>
+            <div className="jingzhai-wuxing-row">
+              <span className="jingzhai-wuxing-pair">{t(language, "jingzhai.relation.sittingFloor" as TranslationKey)}</span>
+              <span className="jingzhai-wuxing-rel">{formatWuxingRelation(language, attributes.sitting?.element ?? "", attributes.floor?.element ?? "")}</span>
+            </div>
+            <div className="jingzhai-wuxing-row">
+              <span className="jingzhai-wuxing-pair">{t(language, "jingzhai.relation.sittingRoom" as TranslationKey)}</span>
+              <span className="jingzhai-wuxing-rel">{formatWuxingRelation(language, attributes.sitting?.element ?? "", attributes.room?.element ?? "")}</span>
+            </div>
+            <div className="jingzhai-wuxing-row">
+              <span className="jingzhai-wuxing-pair">{t(language, "jingzhai.relation.floorRoom" as TranslationKey)}</span>
+              <span className="jingzhai-wuxing-rel">{formatWuxingRelation(language, attributes.floor?.element ?? "", attributes.room?.element ?? "")}</span>
+            </div>
+          </div>
           {reason && <p className="meta-text compact-note">{reason}</p>}
         </article>
 
         <div className="compact-result-card">
+          {house.door_analysis && decades.length > 0 && (
+            <JingzhaiDoorSection
+              language={language}
+              doorAnalysis={house.door_analysis}
+              decade={decades[0]}
+            />
+          )}
           <JingzhaiPhaseTimeline language={language} phases={house.phases ?? []} />
           <JingzhaiPersonImpact language={language} persons={personImpact?.persons ?? []} />
         </div>

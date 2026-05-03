@@ -16,6 +16,46 @@
   - [../fengshui/fengshui_formula_summary.md](../fengshui/fengshui_formula_summary.md)
 - Last aligned with: compact 6-tab analysis layout, Jingzhai/static-house results, local subtabs for dense result panels, house-period diagnostics, and Dongzhai floor results.
 
+## Local Development
+
+### Prerequisites
+
+- Node.js 18+
+- Backend API running (see sibling `../fengshui/README.md`)
+
+### Setup & Run
+
+```bash
+npm install
+npm run dev
+```
+
+The dev server starts at `http://127.0.0.1:5173`. By default it sends API requests to `http://127.0.0.1:8000` — you can change this URL in the UI's API base URL input field.
+
+### Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start local development server with hot-reload |
+| `npm run build` | TypeScript type-check + production build |
+| `npm test` | Run Vitest test suite |
+
+### Typical Workflow
+
+1. Start the backend API from `../fengshui/`:
+   ```bash
+   cd ../fengshui
+   source .venv/bin/activate
+   uvicorn fengshui_api.main:app --reload
+   ```
+2. In a separate terminal, start the frontend:
+   ```bash
+   cd ../fengshui_fe
+   npm run dev
+   ```
+3. Open `http://127.0.0.1:5173` in a browser.
+4. Enter house/person data and click **Evaluate** to see results.
+
 ## Purpose
 
 - Describe the current frontend shape as shipped.

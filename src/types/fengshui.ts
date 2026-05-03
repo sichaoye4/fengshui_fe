@@ -430,9 +430,46 @@ export interface JingzhaiDecadeAnalysis {
   wealth_sources?: Array<Record<string, unknown>>;
   leakage_sinks?: Array<Record<string, unknown>>;
   support_sources?: Array<Record<string, unknown>>;
+  door_recommendation?: JingzhaiDoorRecommendation | null;
 }
 
-export interface JingzhaiHouseAnalysis {
+export interface JingzhaiDoorOption {
+  bagua: string;
+  bagua_zh: string;
+  element: string;
+  relation: string;
+  relation_code: string;
+}
+
+export interface JingzhaiScoredDoorOption extends JingzhaiDoorOption {
+  position: string;
+  label_zh: string;
+  score: number;
+}
+
+export interface JingzhaiDoorAnalysis {
+  available: boolean;
+  sitting_bagua?: string;
+  sitting_bagua_zh?: string;
+  sitting_element?: string;
+  facing_bagua?: string;
+  facing_bagua_zh?: string;
+  door_bagua?: string;
+  door_bagua_zh?: string;
+  center_door?: JingzhaiDoorOption;
+  dragon_door?: JingzhaiDoorOption;
+  tiger_door?: JingzhaiDoorOption;
+}
+
+export interface JingzhaiDoorRecommendation {
+  available: boolean;
+  door_options: JingzhaiScoredDoorOption[];
+  recommended: string[];
+  recommended_keys: string[];
+  rationale_zh: string;
+  rationale_en: string;
+  condition: string;
+}
   status: "ok" | "partial" | "not_evaluable" | string;
   reason_zh?: string;
   reason_en?: string;
@@ -443,7 +480,7 @@ export interface JingzhaiHouseAnalysis {
   };
   phases?: JingzhaiPhase[];
   decade_analyses?: JingzhaiDecadeAnalysis[];
-  door_analysis?: Record<string, unknown> | null;
+  door_analysis?: JingzhaiDoorAnalysis | null;
   overall_summary?: {
     total_decades_analyzed?: number;
     afflicted_decades_count?: number;
