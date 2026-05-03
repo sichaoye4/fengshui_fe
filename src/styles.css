@@ -767,6 +767,30 @@ textarea {
   background: rgba(239, 244, 249, 0.86);
 }
 
+.dongzhai-sequence-details {
+  display: grid;
+  gap: 8px;
+}
+
+.dongzhai-sequence-details summary {
+  cursor: pointer;
+  color: var(--ink-700);
+  font-weight: 700;
+}
+
+.dongzhai-table-wrap {
+  max-height: 360px;
+}
+
+.dongzhai-current-floor-row {
+  background: rgba(179, 62, 42, 0.08);
+  font-weight: 700;
+}
+
+.dongzhai-warning-list {
+  color: #8a4a0e;
+}
+
 .severity-pill {
   display: inline-block;
   border-radius: 999px;

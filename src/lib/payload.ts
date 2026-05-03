@@ -4,6 +4,8 @@ import type {
   BazhaiMissingField,
   DerivedState,
   Direction24Code,
+  DongzhaiFloorEvaluateRequest,
+  DongzhaiMissingField,
   EditorState,
   HouseholdBazhaiRequest,
   InputDraftState,
@@ -107,6 +109,55 @@ export function createHouseholdBazhaiRequest(inputs: InputDraftState): Household
         relationship: member.relationship
       };
     })
+  };
+}
+
+export function getDongzhaiMissingFields(inputs: InputDraftState): DongzhaiMissingField[] {
+  const missing: DongzhaiMissingField[] = [];
+  const facingBagua = parseOptionalEnum<BaguaCode>(inputs.house.facing_bagua, BAGUA_OPTIONS);
+  const doorBagua = parseOptionalEnum<BaguaCode>(inputs.house.door_bagua, BAGUA_OPTIONS);
+  const totalFloors = parseOptionalPositiveInteger(inputs.house.total_floors);
+  const currentFloor = parseOptionalPositiveInteger(inputs.house.current_floor);
+
+  if (!facingBagua) {
+    missing.push("house.facing_bagua");
+  }
+  if (!doorBagua) {
+    missing.push("house.door_bagua");
+  }
+  if (totalFloors === null) {
+    missing.push("house.total_floors");
+  }
+  if (currentFloor === null) {
+    missing.push("house.current_floor");
+  }
+  if (totalFloors !== null && currentFloor !== null && currentFloor > totalFloors) {
+    missing.push("house.current_floor.within_total_floors");
+  }
+
+  return missing;
+}
+
+export function createDongzhaiFloorRequest(inputs: InputDraftState): DongzhaiFloorEvaluateRequest | null {
+  if (getDongzhaiMissingFields(inputs).length > 0) {
+    return null;
+  }
+
+  const facingBagua = parseOptionalEnum<BaguaCode>(inputs.house.facing_bagua, BAGUA_OPTIONS);
+  const doorBagua = parseOptionalEnum<BaguaCode>(inputs.house.door_bagua, BAGUA_OPTIONS);
+  const totalFloors = parseOptionalPositiveInteger(inputs.house.total_floors);
+  const currentFloor = parseOptionalPositiveInteger(inputs.house.current_floor);
+
+  if (!facingBagua || !doorBagua || totalFloors === null || currentFloor === null) {
+    return null;
+  }
+
+  return {
+    building_facing_bagua: facingBagua,
+    door_bagua: doorBagua,
+    total_floors: totalFloors,
+    current_floor: currentFloor,
+    has_obvious_shape_sha: inputs.manual_flags.shape_color_sha
   };
 }
 

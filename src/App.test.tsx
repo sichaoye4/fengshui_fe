@@ -211,6 +211,67 @@ function installEvaluationFetchMock() {
           }
         ]
       };
+    } else if (url.includes("/api/v1/bazhai/dongzhai-floor")) {
+      body = {
+        evaluable: true,
+        not_evaluable_reason_zh: "",
+        not_evaluable_reason_en: "",
+        building_facing_bagua: "震",
+        building_facing_bagua_code: "ZHEN",
+        building_facing_bagua_zh: "震",
+        door_bagua: "坤",
+        door_bagua_code: "KUN",
+        door_bagua_zh: "坤",
+        door_sitting_bagua: "艮",
+        door_sitting_bagua_code: "GEN",
+        door_sitting_bagua_zh: "艮",
+        base_bagua: "震",
+        base_bagua_code: "ZHEN",
+        base_bagua_zh: "震",
+        base_rule: "Door differs from building facing, so building facing is used as base.",
+        total_floors: 20,
+        current_floor: 19,
+        method_code: "ZHUJIE_GUANJING",
+        method_zh: "竹节贯井",
+        method_en: "Bamboo joint well method",
+        initial_star_relation: {},
+        floor_sequence: [
+          {
+            floor: 18,
+            star_code: "liu_sha",
+            star_name_zh: "六煞",
+            star_name_en: "Liu Sha",
+            star_element_code: "WATER",
+            is_auspicious: false,
+            label_zh: "凶",
+            label_en: "inauspicious"
+          },
+          {
+            floor: 19,
+            star_code: "yan_nian",
+            star_name_zh: "延年",
+            star_name_en: "Yan Nian",
+            star_element_code: "METAL",
+            is_auspicious: true,
+            label_zh: "吉",
+            label_en: "auspicious"
+          }
+        ],
+        current_floor_evaluation: {
+          floor: 19,
+          star_code: "yan_nian",
+          star_name_zh: "延年",
+          star_name_en: "Yan Nian",
+          star_element_code: "METAL",
+          is_auspicious: true,
+          label_zh: "吉",
+          label_en: "auspicious"
+        },
+        overall_is_auspicious: true,
+        overall_label_zh: "吉",
+        overall_label_en: "auspicious",
+        warnings: []
+      };
     } else if (url.includes("/api/v1/bazhai/person-house")) {
       body = {
         year: 1994,
@@ -271,6 +332,9 @@ describe("App tabbed workflow", () => {
     expect(screen.getByLabelText("Facing Bagua")).toHaveValue("LI");
 
     await user.click(within(mainTabs).getByRole("tab", { name: /Static House/ }));
+    expect(screen.getByLabelText("Facing Bagua")).toHaveValue("LI");
+
+    await user.click(within(mainTabs).getByRole("tab", { name: /Dongzhai Floor/ }));
     expect(screen.getByLabelText("Facing Bagua")).toHaveValue("LI");
   });
 
@@ -341,11 +405,19 @@ describe("App tabbed workflow", () => {
     expect(doorElementSelect).toHaveValue("WATER");
   });
 
-  it("splits results into house liqi, temporal, house periods, structure, and placeholder tabs", async () => {
+  it("splits results into house liqi, temporal, house periods, structure, static, and dongzhai tabs", async () => {
     const user = userEvent.setup();
     installEvaluationFetchMock();
 
     render(<App />);
+    await user.selectOptions(screen.getByLabelText("Facing Bagua"), "ZHEN");
+    await user.clear(screen.getByLabelText("Current Floor"));
+    await user.type(screen.getByLabelText("Current Floor"), "19");
+    await user.click(screen.getByText("Advanced Foundation Inputs"));
+    await user.clear(screen.getByLabelText("Total Floors"));
+    await user.type(screen.getByLabelText("Total Floors"), "20");
+    await user.selectOptions(screen.getByLabelText("Door Bagua"), "KUN");
+
     await user.click(screen.getByRole("button", { name: "Run Evaluation" }));
 
     await waitFor(() => expect(screen.getByTestId("tab-badge-structure")).toHaveTextContent("M 3 / NE 0"));
@@ -358,13 +430,15 @@ describe("App tabbed workflow", () => {
       "TemporalM 0 / NE 0",
       "PeriodsM 0 / NE 0",
       "ShapeM 3 / NE 0",
-      "StaticM 0 / NE 0"
+      "StaticM 0 / NE 0",
+      "DongzhaiM 1 / NE 0"
     ]);
     expect(screen.getByTestId("tab-badge-house_liqi")).toHaveTextContent("M 0 / NE 0");
     expect(screen.getByTestId("tab-badge-temporal")).toHaveTextContent("M 0 / NE 0");
     expect(screen.getByTestId("tab-badge-zhai_yun")).toHaveTextContent("M 0 / NE 0");
     expect(screen.getByTestId("tab-badge-structure")).toHaveTextContent("M 3 / NE 0");
     expect(screen.getByTestId("tab-badge-static_house")).toHaveTextContent("M 0 / NE 0");
+    expect(screen.getByTestId("tab-badge-dongzhai")).toHaveTextContent("M 1 / NE 0");
 
     expect(screen.getByTestId("section-tab-bazhai")).toBeInTheDocument();
     expect(screen.getByTestId("section-tab-liqi")).toBeInTheDocument();
@@ -388,6 +462,13 @@ describe("App tabbed workflow", () => {
     await user.click(within(mainTabs).getByRole("tab", { name: /Static House/ }));
     expect(screen.getByText("Static House Evaluation")).toBeInTheDocument();
     expect(screen.queryByText(/Score:/)).not.toBeInTheDocument();
+
+    await user.click(within(mainTabs).getByRole("tab", { name: /Dongzhai Floor/ }));
+    expect(screen.getByText("Dongzhai Floor")).toBeInTheDocument();
+    expect(screen.getByText("Current Floor Evaluation")).toBeInTheDocument();
+    expect(screen.getAllByText("Yan Nian").length).toBeGreaterThan(0);
+    await user.click(screen.getByText("Show floor-by-floor sequence"));
+    expect(screen.getByRole("cell", { name: "19" })).toBeInTheDocument();
   });
 
   it("shows refined shape input groups in the structure tab", async () => {

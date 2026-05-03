@@ -65,7 +65,7 @@ Related docs:
 ## Key Invariants
 
 - top shared inputs stay mounted regardless of active tab
-- active tabs are `house_liqi`, `temporal`, `zhai_yun`, `structure`, `static_house`
+- active tabs are `house_liqi`, `temporal`, `zhai_yun`, `structure`, `static_house`, `dongzhai`
 - top analysis tabs use compact labels; first-three-tab detail sections are handled by component-local subtabs
 - local subtab state is not part of persisted project snapshots
 - only `structure` currently owns findings-filter state

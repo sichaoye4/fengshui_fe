@@ -133,7 +133,7 @@ export function createInitialAppState(snapshot: ProjectSnapshot | null): AppStat
 
 export function toProjectSnapshot(state: Pick<AppState, "editor" | "inputs" | "evaluation">): ProjectSnapshot {
   return {
-    schema_version: "1.1",
+    schema_version: "1.2",
     editor: state.editor,
     inputs: state.inputs,
     derived: deriveProjectState(state.editor, state.inputs),

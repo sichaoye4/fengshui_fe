@@ -9,8 +9,9 @@ import {
   STRENGTH_OPTIONS,
   WUXING_OPTIONS
 } from "./constants";
-import { evaluateHouseholdBazhai, evaluateRules } from "./api/client";
+import { evaluateDongzhaiFloor, evaluateHouseholdBazhai, evaluateRules } from "./api/client";
 import { fetchAnnualFlyingStar, fetchAnnualTemporal, fetchFourYunProfile, fetchGregorianConversion, fetchLiqiHouseProfile, fetchMonthlyTemporal } from "./api/temporal";
+import { DongzhaiPanel } from "./components/DongzhaiPanel";
 import { ExternalShaChecklist } from "./components/ExternalShaChecklist";
 import { FloorplanEditor } from "./components/FloorplanEditor";
 import { HouseLiqiWorkspace } from "./components/HouseLiqiWorkspace";
@@ -21,9 +22,11 @@ import { TemporalPanel } from "./components/TemporalPanel";
 import { ToolPanel } from "./components/ToolPanel";
 import { deriveProjectState } from "./lib/derivation";
 import {
+  createDongzhaiFloorRequest,
   createHouseholdBazhaiRequest,
   createEvaluationRequest,
   getBazhaiMissingFields,
+  getDongzhaiMissingFields,
   hashPayload
 } from "./lib/payload";
 import { exportProject, importProject, loadDraft, saveDraft } from "./lib/persistence";
@@ -102,7 +105,8 @@ const ANALYSIS_TABS: Array<{ id: AnalysisTab; key: TranslationKey; ariaKey: Tran
   { id: "temporal", key: "app.tab.temporal", ariaKey: "app.tabFull.temporal" },
   { id: "zhai_yun", key: "app.tab.zhaiYun", ariaKey: "app.tabFull.zhaiYun" },
   { id: "structure", key: "app.tab.structure", ariaKey: "app.tabFull.structure" },
-  { id: "static_house", key: "app.tab.staticHouse", ariaKey: "app.tabFull.staticHouse" }
+  { id: "static_house", key: "app.tab.staticHouse", ariaKey: "app.tabFull.staticHouse" },
+  { id: "dongzhai", key: "app.tab.dongzhai", ariaKey: "app.tabFull.dongzhai" }
 ];
 
 const BAGUA_ZH_LABELS: Record<BaguaCode, string> = {
@@ -221,6 +225,7 @@ export default function App(): JSX.Element {
     [state.inputs.members, state.inputs.temporal.gregorian_date]
   );
   const bazhaiMissingFields = useMemo(() => getBazhaiMissingFields(state.inputs), [state.inputs]);
+  const dongzhaiMissingFields = useMemo(() => getDongzhaiMissingFields(state.inputs), [state.inputs]);
 
   const structureFindings = useMemo(
     () => state.evaluation?.response.findings.filter((item) => item.formula_id.startsWith("INT-")) ?? [],
@@ -244,14 +249,23 @@ export default function App(): JSX.Element {
       notEvaluable: findings.filter((item) => item.status === "not_evaluable").length
     });
 
+    const dongzhaiResult = state.evaluation?.dongzhai_result ?? null;
+    const dongzhaiCounts =
+      dongzhaiResult === null
+        ? { matched: 0, notEvaluable: dongzhaiMissingFields.length > 0 ? 1 : 0 }
+        : dongzhaiResult.evaluable
+          ? { matched: 1, notEvaluable: 0 }
+          : { matched: 0, notEvaluable: 1 };
+
     return {
       house_liqi: countByStatus([]),
       temporal: countByStatus([]),
       zhai_yun: countByStatus([]),
       structure: countByStatus(combinedStructureFindings),
-      static_house: countByStatus([])
+      static_house: countByStatus([]),
+      dongzhai: dongzhaiCounts
     } as Record<AnalysisTab, { matched: number; notEvaluable: number }>;
-  }, [combinedStructureFindings, structureFindings]);
+  }, [combinedStructureFindings, dongzhaiMissingFields.length, state.evaluation?.dongzhai_result, structureFindings]);
 
   useEffect(() => {
     saveDraft(toProjectSnapshot(state));
@@ -276,12 +290,25 @@ export default function App(): JSX.Element {
           });
         }
       }
+      const dongzhaiPayload = createDongzhaiFloorRequest(state.inputs);
+      let dongzhaiResult = null;
+      if (dongzhaiPayload) {
+        try {
+          dongzhaiResult = await evaluateDongzhaiFloor(state.apiBaseUrl, dongzhaiPayload);
+        } catch (err) {
+          dispatch({
+            type: "set_error",
+            value: err instanceof Error ? `Dongzhai: ${err.message}` : `Dongzhai: ${String(err)}`
+          });
+        }
+      }
       const snapshot: EvaluationSnapshot = {
         requested_at: new Date().toISOString(),
         payload_hash: hashPayload(payload),
         request: payload,
         response,
-        bazhai_results: bazhaiResult
+        bazhai_results: bazhaiResult,
+        dongzhai_result: dongzhaiResult
       };
       dispatch({ type: "set_evaluation", value: snapshot });
       dispatch({ type: "reset_tab_finding_filters" });
@@ -1384,6 +1411,14 @@ export default function App(): JSX.Element {
               <h3>{ui("app.staticHouse.placeholderTitle")}</h3>
               <p>{ui("app.staticHouse.placeholderDesc")}</p>
             </section>
+          )}
+
+          {state.activeTab === "dongzhai" && (
+            <DongzhaiPanel
+              language={state.language}
+              result={state.evaluation?.dongzhai_result ?? null}
+              missingFields={dongzhaiMissingFields}
+            />
           )}
         </section>
       </main>

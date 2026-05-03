@@ -14,7 +14,7 @@
   - [../fengshui/README.md](../fengshui/README.md)
   - [../fengshui/docs/backend_api_contract.md](../fengshui/docs/backend_api_contract.md)
   - [../fengshui/fengshui_formula_summary.md](../fengshui/fengshui_formula_summary.md)
-- Last aligned with: compact 5-tab analysis layout, local subtabs for dense result panels, and house-period diagnostics.
+- Last aligned with: compact 6-tab analysis layout, local subtabs for dense result panels, house-period diagnostics, and Dongzhai floor results.
 
 ## Purpose
 
@@ -75,6 +75,8 @@ The top analysis tabs use short visible labels and full ARIA labels; data-heavy 
    - floorplan editor + manual structure/shape input + combined `INT-*`, `EXT-*`, `MIT-*` findings
 5. `static_house`
    - placeholder only for now
+6. `dongzhai`
+   - apartment/动宅 floor evaluation from `POST /api/v1/bazhai/dongzhai-floor`
 
 ### Data Flow
 
@@ -144,7 +146,7 @@ Legacy-but-present:
 ## Important Invariants
 
 - shared house/person/time inputs live in the top input block and do not remount on tab switch
-- active analysis tabs are `house_liqi`, `temporal`, `zhai_yun`, `structure`, `static_house`
+- active analysis tabs are `house_liqi`, `temporal`, `zhai_yun`, `structure`, `static_house`, `dongzhai`
 - main analysis tabs must stay compact enough for at least six desktop tabs; local subtabs absorb section-level detail
 - local subtab state is component-local and is not persisted in project snapshots
 - only the `structure` tab currently owns findings-filter state

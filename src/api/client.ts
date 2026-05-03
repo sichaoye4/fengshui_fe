@@ -1,4 +1,6 @@
 import type {
+  DongzhaiFloorEvaluateRequest,
+  DongzhaiFloorEvaluateResponse,
   HouseholdBazhaiRequest,
   HouseholdBazhaiResponse,
   RuleEvaluateRequest,
@@ -45,6 +47,17 @@ export async function evaluateHouseholdBazhai(
   return postJson<HouseholdBazhaiRequest, HouseholdBazhaiResponse>(
     baseUrl,
     "/api/v1/bazhai/household-person-house",
+    payload
+  );
+}
+
+export async function evaluateDongzhaiFloor(
+  baseUrl: string,
+  payload: DongzhaiFloorEvaluateRequest
+): Promise<DongzhaiFloorEvaluateResponse> {
+  return postJson<DongzhaiFloorEvaluateRequest, DongzhaiFloorEvaluateResponse>(
+    baseUrl,
+    "/api/v1/bazhai/dongzhai-floor",
     payload
   );
 }

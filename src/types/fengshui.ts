@@ -1,7 +1,7 @@
 export type Language = "en" | "zh";
 
 export type Tool = "select" | "delete" | "wall" | "door" | "window" | "room";
-export type AnalysisTab = "house_liqi" | "temporal" | "zhai_yun" | "structure" | "static_house";
+export type AnalysisTab = "house_liqi" | "temporal" | "zhai_yun" | "structure" | "static_house" | "dongzhai";
 
 export type FindingStatus = "matched" | "not_matched" | "not_evaluable";
 export type FindingFilter = "all" | FindingStatus;
@@ -322,6 +322,65 @@ export type BazhaiMissingField =
   | "members.empty"
   | "house.sitting_bagua";
 
+export type DongzhaiMissingField =
+  | "house.facing_bagua"
+  | "house.door_bagua"
+  | "house.total_floors"
+  | "house.current_floor"
+  | "house.current_floor.within_total_floors";
+
+export interface DongzhaiFloorEvaluateRequest {
+  building_facing_bagua: BaguaCode;
+  door_bagua: BaguaCode;
+  total_floors: number;
+  current_floor: number;
+  door_sitting_bagua?: BaguaCode;
+  has_obvious_shape_sha: boolean;
+}
+
+export interface DongzhaiFloorEvaluation {
+  floor: number;
+  star_code?: string;
+  star_name_zh?: string;
+  star_name_en?: string;
+  star_element_code?: WuXingCode | string;
+  is_auspicious?: boolean;
+  label_zh?: string;
+  label_en?: string;
+  [key: string]: unknown;
+}
+
+export interface DongzhaiFloorEvaluateResponse {
+  evaluable: boolean;
+  not_evaluable_reason_zh: string;
+  not_evaluable_reason_en: string;
+  building_facing_bagua: string;
+  building_facing_bagua_code: string;
+  building_facing_bagua_zh: string;
+  door_bagua: string;
+  door_bagua_code: string;
+  door_bagua_zh: string;
+  door_sitting_bagua: string;
+  door_sitting_bagua_code: string;
+  door_sitting_bagua_zh: string;
+  base_bagua: string;
+  base_bagua_code: string;
+  base_bagua_zh: string;
+  base_rule: string;
+  total_floors: number;
+  current_floor: number;
+  method_code: string;
+  method_zh: string;
+  method_en: string;
+  initial_star_relation: Record<string, unknown>;
+  floor_sequence: DongzhaiFloorEvaluation[];
+  current_floor_evaluation: DongzhaiFloorEvaluation | null;
+  overall_is_auspicious: boolean | null;
+  overall_label_zh: string;
+  overall_label_en: string;
+  warnings: Array<Record<string, string>>;
+}
+
 export type TabFindingFilterState = {
   structure: FindingFilter;
 };
@@ -332,6 +391,7 @@ export interface EvaluationSnapshot {
   request: RuleEvaluateRequest;
   response: RuleEvaluationResponse;
   bazhai_results: HouseholdBazhaiResponse | null;
+  dongzhai_result: DongzhaiFloorEvaluateResponse | null;
 }
 
 export interface ProjectSnapshot {

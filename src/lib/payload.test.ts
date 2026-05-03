@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultEditorState, createDefaultInputState } from "../constants";
 import {
+  createDongzhaiFloorRequest,
   createEvaluationRequest,
   createHouseholdBazhaiRequest,
   getBazhaiMissingFields,
+  getDongzhaiMissingFields,
   hashPayload
 } from "./payload";
 import { deriveProjectState } from "./derivation";
@@ -140,5 +142,36 @@ describe("createEvaluationRequest", () => {
     const missing = getBazhaiMissingFields(inputs);
     expect(missing).toContain("members.empty");
     expect(createHouseholdBazhaiRequest(inputs)).toBeNull();
+  });
+
+  it("builds dongzhai floor requests from shared house fields", () => {
+    const inputs = createDefaultInputState();
+    inputs.house.facing_bagua = "ZHEN";
+    inputs.house.door_bagua = "KUN";
+    inputs.house.total_floors = "20";
+    inputs.house.current_floor = "19";
+    inputs.manual_flags.shape_color_sha = true;
+
+    expect(getDongzhaiMissingFields(inputs)).toEqual([]);
+    expect(createDongzhaiFloorRequest(inputs)).toEqual({
+      building_facing_bagua: "ZHEN",
+      door_bagua: "KUN",
+      total_floors: 20,
+      current_floor: 19,
+      has_obvious_shape_sha: true
+    });
+  });
+
+  it("reports missing and invalid dongzhai floor inputs", () => {
+    const inputs = createDefaultInputState();
+    inputs.house.total_floors = "5";
+    inputs.house.current_floor = "8";
+
+    expect(getDongzhaiMissingFields(inputs)).toEqual([
+      "house.facing_bagua",
+      "house.door_bagua",
+      "house.current_floor.within_total_floors"
+    ]);
+    expect(createDongzhaiFloorRequest(inputs)).toBeNull();
   });
 });
