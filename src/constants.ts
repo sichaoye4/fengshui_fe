@@ -111,14 +111,10 @@ export function createDefaultInputState(): InputDraftState {
       door_bagua: "",
       sitting_direction24: "",
       facing_direction24: "",
-      sitting_element: "",
-      facing_element: "",
-      door_element: "FIRE",
       total_floors: "",
       current_floor: "",
-      room_index: "",
-      room_count: "",
-      static_cycle_reversed: false
+      house_index: "",
+      room_count: ""
     },
     case_contact: {
       case_contact_name: "",

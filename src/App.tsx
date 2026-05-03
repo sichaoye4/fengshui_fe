@@ -245,6 +245,26 @@ export default function App(): JSX.Element {
     [shapeFindings, structureFindings]
   );
 
+  // Auto-switch tab when analysis mode changes
+  useEffect(() => {
+    if (state.analysisMode === "jingzhai" && state.activeTab === "dongzhai") {
+      dispatch({ type: "set_active_tab", tab: "static_house" });
+    } else if (state.analysisMode === "dongzhai" && state.activeTab === "static_house") {
+      dispatch({ type: "set_active_tab", tab: "dongzhai" });
+    }
+  }, [state.analysisMode, state.activeTab]);
+
+  // Filter tabs based on analysis mode (jingzhai ↔ static_house, dongzhai ↔ dongzhai)
+  const visibleTabs = useMemo(
+    () =>
+      ANALYSIS_TABS.filter((tab) => {
+        if (tab.id === "dongzhai" && state.analysisMode !== "dongzhai") return false;
+        if (tab.id === "static_house" && state.analysisMode !== "jingzhai") return false;
+        return true;
+      }),
+    [state.analysisMode]
+  );
+
   const tabBadgeCounts = useMemo(() => {
     const countByStatus = (findings: typeof structureFindings) => ({
       matched: findings.filter((item) => item.status === "matched").length,
@@ -306,29 +326,35 @@ export default function App(): JSX.Element {
           });
         }
       }
-      const dongzhaiPayload = createDongzhaiFloorRequest(state.inputs);
       let dongzhaiResult = null;
-      if (dongzhaiPayload) {
+      let jingzhaiResult = null;
+
+      if (state.analysisMode === "dongzhai") {
+        const dongzhaiPayload = createDongzhaiFloorRequest(state.inputs);
+        if (dongzhaiPayload) {
+          try {
+            dongzhaiResult = await evaluateDongzhaiFloor(state.apiBaseUrl, dongzhaiPayload);
+          } catch (err) {
+            dispatch({
+              type: "set_error",
+              value: err instanceof Error ? `Dongzhai: ${err.message}` : `Dongzhai: ${String(err)}`
+            });
+          }
+        }
+      }
+
+      if (state.analysisMode === "jingzhai") {
         try {
-          dongzhaiResult = await evaluateDongzhaiFloor(state.apiBaseUrl, dongzhaiPayload);
+          jingzhaiResult = await evaluateJingzhaiFull(
+            state.apiBaseUrl,
+            createJingzhaiFullRequest(state.editor, state.inputs, derived)
+          );
         } catch (err) {
           dispatch({
             type: "set_error",
-            value: err instanceof Error ? `Dongzhai: ${err.message}` : `Dongzhai: ${String(err)}`
+            value: err instanceof Error ? `Jingzhai: ${err.message}` : `Jingzhai: ${String(err)}`
           });
         }
-      }
-      let jingzhaiResult = null;
-      try {
-        jingzhaiResult = await evaluateJingzhaiFull(
-          state.apiBaseUrl,
-          createJingzhaiFullRequest(state.editor, state.inputs, derived)
-        );
-      } catch (err) {
-        dispatch({
-          type: "set_error",
-          value: err instanceof Error ? `Jingzhai: ${err.message}` : `Jingzhai: ${String(err)}`
-        });
       }
       const snapshot: EvaluationSnapshot = {
         requested_at: new Date().toISOString(),
@@ -530,46 +556,53 @@ export default function App(): JSX.Element {
                   </select>
                 </label>
 
-                <label>
-                  {ui("app.house.doorElement")}
-                  <select
-                    value={state.inputs.house.door_element}
-                    onChange={(event) => {
-                      const next = event.currentTarget.value as HouseMetaInput["door_element"];
-                      dispatch({ type: "set_house_field", field: "door_element", value: next });
-                    }}
-                  >
-                    {WUXING_OPTIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {renderWuxingLabel(item)}
-                      </option>
-                    ))}
-                  </select>
+                <label className="analysis-mode-label">
+                  {ui("app.analysisMode.label")}
+                  <div className="analysis-mode-toggle">
+                    <button
+                      type="button"
+                      className={state.analysisMode === "jingzhai" ? "active" : ""}
+                      onClick={() => dispatch({ type: "set_analysis_mode", mode: "jingzhai" })}
+                    >
+                      {ui("app.analysisMode.jingzhai")}
+                    </button>
+                    <button
+                      type="button"
+                      className={state.analysisMode === "dongzhai" ? "active" : ""}
+                      onClick={() => dispatch({ type: "set_analysis_mode", mode: "dongzhai" })}
+                    >
+                      {ui("app.analysisMode.dongzhai")}
+                    </button>
+                  </div>
                 </label>
 
-                <label>
-                  {ui("app.house.currentFloor")}
-                  <input
-                    type="number"
-                    min="1"
-                    value={state.inputs.house.current_floor}
-                    onChange={(event) => {
-                      dispatch({ type: "set_house_field", field: "current_floor", value: event.currentTarget.value });
-                    }}
-                  />
-                </label>
+                {state.analysisMode === "dongzhai" && (
+                  <label>
+                    <span>{ui("app.house.currentFloor")}</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={state.inputs.house.current_floor}
+                      onChange={(event) => {
+                        dispatch({ type: "set_house_field", field: "current_floor", value: event.currentTarget.value });
+                      }}
+                    />
+                  </label>
+                )}
 
-                <label>
-                  {ui("app.house.roomIndex")}
-                  <input
-                    type="number"
-                    min="1"
-                    value={state.inputs.house.room_index}
-                    onChange={(event) => {
-                      dispatch({ type: "set_house_field", field: "room_index", value: event.currentTarget.value });
-                    }}
-                  />
-                </label>
+                {state.analysisMode === "jingzhai" && (
+                  <label>
+                    <span>{ui("app.house.houseIndex")}</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={state.inputs.house.house_index}
+                      onChange={(event) => {
+                        dispatch({ type: "set_house_field", field: "house_index", value: event.currentTarget.value });
+                      }}
+                    />
+                  </label>
+                )}
 
                 <label>
                   {ui("app.caseContact.name" as TranslationKey)}
@@ -689,63 +722,6 @@ export default function App(): JSX.Element {
                         </option>
                       ))}
                     </select>
-                  </label>
-
-                  <label>
-                    {ui("app.house.sittingElement")}
-                    <select
-                      value={state.inputs.house.sitting_element}
-                      onChange={(event) => {
-                        dispatch({
-                          type: "set_house_field",
-                          field: "sitting_element",
-                          value: event.currentTarget.value as HouseMetaInput["sitting_element"]
-                        });
-                      }}
-                    >
-                      <option value="">{ui("app.common.select")}</option>
-                      {WUXING_OPTIONS.map((item) => (
-                        <option key={item} value={item}>
-                          {renderWuxingLabel(item)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label>
-                    {ui("app.house.facingElement")}
-                    <select
-                      value={state.inputs.house.facing_element}
-                      onChange={(event) => {
-                        dispatch({
-                          type: "set_house_field",
-                          field: "facing_element",
-                          value: event.currentTarget.value as HouseMetaInput["facing_element"]
-                        });
-                      }}
-                    >
-                      <option value="">{ui("app.common.select")}</option>
-                      {WUXING_OPTIONS.map((item) => (
-                        <option key={item} value={item}>
-                          {renderWuxingLabel(item)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="inline-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={state.inputs.house.static_cycle_reversed}
-                      onChange={(event) => {
-                        dispatch({
-                          type: "set_house_field",
-                          field: "static_cycle_reversed",
-                          value: event.currentTarget.checked
-                        });
-                      }}
-                    />
-                    <span>{ui("app.house.staticCycleReversed")}</span>
                   </label>
                 </div>
               </details>
@@ -1008,7 +984,7 @@ export default function App(): JSX.Element {
             <h3>{ui("app.analysisTabs")}</h3>
           </div>
           <div className="tab-row" role="tablist" aria-label={ui("app.analysisTabsAria")}>
-            {ANALYSIS_TABS.map((tab) => (
+            {visibleTabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"

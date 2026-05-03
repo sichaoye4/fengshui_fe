@@ -109,14 +109,10 @@ export interface HouseMetaInput {
   door_bagua: "" | BaguaCode;
   sitting_direction24: "" | Direction24Code;
   facing_direction24: "" | Direction24Code;
-  sitting_element: "" | WuXingCode;
-  facing_element: "" | WuXingCode;
-  door_element: WuXingCode;
   total_floors: string;
   current_floor: string;
-  room_index: string;
+  house_index: string;
   room_count: string;
-  static_cycle_reversed: boolean;
 }
 
 export interface CaseContactInput {
@@ -220,14 +216,10 @@ export interface RuleEvaluateRequest {
     door_bagua?: BaguaCode;
     sitting_direction24?: Direction24Code;
     facing_direction24?: Direction24Code;
-    sitting_element?: WuXingCode;
-    facing_element?: WuXingCode;
-    door_element?: WuXingCode;
     total_floors?: number;
     current_floor?: number;
-    room_index?: number;
+    house_index?: number;
     room_count?: number;
-    static_cycle_reversed?: boolean;
     house_area_m2: number;
     mingtang_area_m2: number;
     flags: Record<string, boolean>;

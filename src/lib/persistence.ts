@@ -198,14 +198,10 @@ function sanitizeHouse(raw: unknown, defaults: HouseMetaInput): HouseMetaInput {
       ["", ...DIRECTION24_OPTIONS] as const,
       defaults.facing_direction24
     ),
-    sitting_element: readEnum(source.sitting_element, ["", ...WUXING_OPTIONS] as const, defaults.sitting_element),
-    facing_element: readEnum(source.facing_element, ["", ...WUXING_OPTIONS] as const, defaults.facing_element),
-    door_element: readEnum(source.door_element, WUXING_OPTIONS, defaults.door_element),
     total_floors: readString(source.total_floors, defaults.total_floors),
     current_floor: readString(source.current_floor, defaults.current_floor),
-    room_index: readString(source.room_index, defaults.room_index),
-    room_count: readString(source.room_count, defaults.room_count),
-    static_cycle_reversed: readBoolean(source.static_cycle_reversed, defaults.static_cycle_reversed)
+    house_index: readString(source.house_index ?? source.room_index, defaults.house_index),
+    room_count: readString(source.room_count, defaults.room_count)
   };
 }
 

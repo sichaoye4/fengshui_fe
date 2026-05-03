@@ -236,11 +236,9 @@ export function createEvaluationRequest(
     inputs.house.facing_direction24,
     DIRECTION24_OPTIONS
   );
-  const sittingElement = parseOptionalEnum<WuXingCode>(inputs.house.sitting_element, WUXING_OPTIONS);
-  const facingElement = parseOptionalEnum<WuXingCode>(inputs.house.facing_element, WUXING_OPTIONS);
   const totalFloors = parseOptionalPositiveInteger(inputs.house.total_floors);
   const currentFloor = parseOptionalPositiveInteger(inputs.house.current_floor);
-  const roomIndex = parseOptionalPositiveInteger(inputs.house.room_index);
+  const houseIndex = parseOptionalPositiveInteger(inputs.house.house_index);
   const roomCount = parseOptionalPositiveInteger(inputs.house.room_count);
 
   const payload: RuleEvaluateRequest = {
@@ -251,14 +249,10 @@ export function createEvaluationRequest(
       ...(doorBagua ? { door_bagua: doorBagua } : {}),
       ...(sittingDirection24 ? { sitting_direction24: sittingDirection24 } : {}),
       ...(facingDirection24 ? { facing_direction24: facingDirection24 } : {}),
-      ...(sittingElement ? { sitting_element: sittingElement } : {}),
-      ...(facingElement ? { facing_element: facingElement } : {}),
-      door_element: inputs.house.door_element,
       ...(totalFloors !== null ? { total_floors: totalFloors } : {}),
       ...(currentFloor !== null ? { current_floor: currentFloor } : {}),
-      ...(roomIndex !== null ? { room_index: roomIndex } : {}),
+      ...(houseIndex !== null ? { house_index: houseIndex } : {}),
       ...(roomCount !== null ? { room_count: roomCount } : {}),
-      static_cycle_reversed: inputs.house.static_cycle_reversed,
       house_area_m2: sanitizeNumber(derived.house_area_m2),
       mingtang_area_m2: sanitizeNumber(derived.mingtang_area_m2),
       flags: { ...derived.flags },
@@ -289,14 +283,10 @@ export function createEvaluationRequest(
           door_bagua: doorBagua,
           sitting_direction24: sittingDirection24,
           facing_direction24: facingDirection24,
-          sitting_element: sittingElement,
-          facing_element: facingElement,
-          door_element: inputs.house.door_element,
           total_floors: totalFloors,
           current_floor: currentFloor,
-          room_index: roomIndex,
-          room_count: roomCount,
-          static_cycle_reversed: inputs.house.static_cycle_reversed
+          house_index: houseIndex,
+          room_count: roomCount
         },
         gregorian_date: inputs.temporal.gregorian_date,
         gregorian_time: inputs.temporal.gregorian_time,

@@ -1306,3 +1306,45 @@ textarea {
 .compact-palace-grid {
   width: min(100%, 390px);
 }
+
+/* ── Analysis mode toggle ── */
+
+.analysis-mode-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.analysis-mode-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.analysis-mode-toggle button {
+  flex: 1;
+  padding: 6px 12px;
+  border: none;
+  background: var(--paper-2);
+  color: var(--ink-700);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.analysis-mode-toggle button:not(:last-child) {
+  border-right: 1px solid var(--line);
+}
+
+.analysis-mode-toggle button.active {
+  background: linear-gradient(120deg, var(--cinnabar), var(--cinnabar-deep));
+  color: #fff;
+  font-weight: 600;
+}
+
+.analysis-mode-toggle button:hover:not(.active) {
+  background: var(--paper-3);
+}
+

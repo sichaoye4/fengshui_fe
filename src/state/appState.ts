@@ -25,6 +25,7 @@ export interface AppState {
   language: Language;
   tool: Tool;
   activeTab: AnalysisTab;
+  analysisMode: "jingzhai" | "dongzhai";
   tabFindingFilters: TabFindingFilterState;
   apiBaseUrl: string;
   showAdvancedExternal: boolean;
@@ -49,6 +50,7 @@ export type AppAction =
   | { type: "set_active_tab"; tab: AnalysisTab }
   | { type: "set_tab_finding_filter"; tab: keyof TabFindingFilterState; filter: FindingFilter }
   | { type: "reset_tab_finding_filters" }
+  | { type: "set_analysis_mode"; mode: "jingzhai" | "dongzhai" }
   | { type: "set_api_base_url"; value: string }
   | { type: "set_show_advanced_external"; value: boolean }
   | { type: "set_place_entrance_mode"; value: boolean }
@@ -105,6 +107,7 @@ export function createInitialAppState(snapshot: ProjectSnapshot | null): AppStat
     language: "en",
     tool: "select",
     activeTab: "house_liqi",
+    analysisMode: "jingzhai",
     tabFindingFilters: {
       structure: "all"
     },
@@ -164,6 +167,8 @@ export function appReducer(state: AppState, action: AppAction): AppState {
           structure: "all"
         }
       };
+    case "set_analysis_mode":
+      return { ...state, analysisMode: action.mode };
     case "set_api_base_url":
       return { ...state, apiBaseUrl: action.value };
     case "set_show_advanced_external":
