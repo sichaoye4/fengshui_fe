@@ -9,6 +9,7 @@ import type {
   EditorState,
   HouseholdBazhaiRequest,
   InputDraftState,
+  JingzhaiFullRequest,
   RuleEvaluateRequest,
   WuXingCode
 } from "../types/fengshui";
@@ -75,6 +76,14 @@ function calculateOwnerAgeFromBirthYear(rawBirthYear: string, referenceYear: num
   }
 
   return age;
+}
+
+function parseYearFromInputDate(raw: string): number {
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.getFullYear();
+  }
+  return new Date().getFullYear();
 }
 
 export function getBazhaiMissingFields(inputs: InputDraftState): BazhaiMissingField[] {
@@ -158,6 +167,35 @@ export function createDongzhaiFloorRequest(inputs: InputDraftState): DongzhaiFlo
     total_floors: totalFloors,
     current_floor: currentFloor,
     has_obvious_shape_sha: inputs.manual_flags.shape_color_sha
+  };
+}
+
+export function createJingzhaiFullRequest(
+  editor: EditorState,
+  inputs: InputDraftState,
+  derived: DerivedState
+): JingzhaiFullRequest {
+  const evaluationRequest = createEvaluationRequest(editor, inputs, derived);
+  const persons = inputs.members.flatMap((member) => {
+    const birthYear = parseOptionalInteger(member.birth_year);
+    const gender = normalizeGender(member.gender);
+    if (birthYear === null || birthYear <= 0 || !gender) {
+      return [];
+    }
+    return [
+      {
+        member_id: member.id,
+        name: member.name,
+        birth_year: birthYear,
+        gender
+      }
+    ];
+  });
+
+  return {
+    house_profile: evaluationRequest.house_profile,
+    persons,
+    solar_year: parseYearFromInputDate(inputs.temporal.gregorian_date)
   };
 }
 

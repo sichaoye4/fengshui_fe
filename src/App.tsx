@@ -9,13 +9,14 @@ import {
   STRENGTH_OPTIONS,
   WUXING_OPTIONS
 } from "./constants";
-import { evaluateDongzhaiFloor, evaluateHouseholdBazhai, evaluateRules } from "./api/client";
+import { evaluateDongzhaiFloor, evaluateHouseholdBazhai, evaluateJingzhaiFull, evaluateRules } from "./api/client";
 import { fetchAnnualFlyingStar, fetchAnnualTemporal, fetchFourYunProfile, fetchGregorianConversion, fetchLiqiHouseProfile, fetchMonthlyTemporal } from "./api/temporal";
 import { DongzhaiPanel } from "./components/DongzhaiPanel";
 import { ExternalShaChecklist } from "./components/ExternalShaChecklist";
 import { FloorplanEditor } from "./components/FloorplanEditor";
 import { HouseLiqiWorkspace } from "./components/HouseLiqiWorkspace";
 import { HousePeriodPanel } from "./components/HousePeriodPanel";
+import { JingzhaiPanel } from "./components/JingzhaiPanel";
 import { LanguageToggle } from "./components/LanguageToggle";
 import { ResultsPanel } from "./components/ResultsPanel";
 import { TemporalPanel } from "./components/TemporalPanel";
@@ -25,6 +26,7 @@ import {
   createDongzhaiFloorRequest,
   createHouseholdBazhaiRequest,
   createEvaluationRequest,
+  createJingzhaiFullRequest,
   getBazhaiMissingFields,
   getDongzhaiMissingFields,
   hashPayload
@@ -249,6 +251,14 @@ export default function App(): JSX.Element {
       notEvaluable: findings.filter((item) => item.status === "not_evaluable").length
     });
 
+    const jingzhaiResult = state.evaluation?.jingzhai_result ?? null;
+    const jingzhaiStatus = jingzhaiResult?.house_analysis.status;
+    const jingzhaiCounts =
+      jingzhaiResult === null
+        ? { matched: 0, notEvaluable: 0 }
+        : jingzhaiStatus === "ok"
+          ? { matched: 1, notEvaluable: 0 }
+          : { matched: 0, notEvaluable: 1 };
     const dongzhaiResult = state.evaluation?.dongzhai_result ?? null;
     const dongzhaiCounts =
       dongzhaiResult === null
@@ -262,10 +272,16 @@ export default function App(): JSX.Element {
       temporal: countByStatus([]),
       zhai_yun: countByStatus([]),
       structure: countByStatus(combinedStructureFindings),
-      static_house: countByStatus([]),
+      static_house: jingzhaiCounts,
       dongzhai: dongzhaiCounts
     } as Record<AnalysisTab, { matched: number; notEvaluable: number }>;
-  }, [combinedStructureFindings, dongzhaiMissingFields.length, state.evaluation?.dongzhai_result, structureFindings]);
+  }, [
+    combinedStructureFindings,
+    dongzhaiMissingFields.length,
+    state.evaluation?.dongzhai_result,
+    state.evaluation?.jingzhai_result,
+    structureFindings
+  ]);
 
   useEffect(() => {
     saveDraft(toProjectSnapshot(state));
@@ -302,13 +318,26 @@ export default function App(): JSX.Element {
           });
         }
       }
+      let jingzhaiResult = null;
+      try {
+        jingzhaiResult = await evaluateJingzhaiFull(
+          state.apiBaseUrl,
+          createJingzhaiFullRequest(state.editor, state.inputs, derived)
+        );
+      } catch (err) {
+        dispatch({
+          type: "set_error",
+          value: err instanceof Error ? `Jingzhai: ${err.message}` : `Jingzhai: ${String(err)}`
+        });
+      }
       const snapshot: EvaluationSnapshot = {
         requested_at: new Date().toISOString(),
         payload_hash: hashPayload(payload),
         request: payload,
         response,
         bazhai_results: bazhaiResult,
-        dongzhai_result: dongzhaiResult
+        dongzhai_result: dongzhaiResult,
+        jingzhai_result: jingzhaiResult
       };
       dispatch({ type: "set_evaluation", value: snapshot });
       dispatch({ type: "reset_tab_finding_filters" });
@@ -1407,10 +1436,7 @@ export default function App(): JSX.Element {
           )}
 
           {state.activeTab === "static_house" && (
-            <section className="panel">
-              <h3>{ui("app.staticHouse.placeholderTitle")}</h3>
-              <p>{ui("app.staticHouse.placeholderDesc")}</p>
-            </section>
+            <JingzhaiPanel language={state.language} result={state.evaluation?.jingzhai_result ?? null} />
           )}
 
           {state.activeTab === "dongzhai" && (

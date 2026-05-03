@@ -381,6 +381,119 @@ export interface DongzhaiFloorEvaluateResponse {
   warnings: Array<Record<string, string>>;
 }
 
+export interface JingzhaiMemberPayload {
+  member_id: string;
+  name: string;
+  birth_year: number;
+  gender: OwnerGender;
+}
+
+export interface JingzhaiFullRequest {
+  house_profile: RuleEvaluateRequest["house_profile"];
+  persons: JingzhaiMemberPayload[];
+  solar_year: number;
+}
+
+export interface JingzhaiAttributeSummary {
+  bagua?: string | null;
+  bagua_zh?: string | null;
+  element?: string | null;
+  number?: number | null;
+  index?: number | null;
+}
+
+export interface JingzhaiPhase {
+  phase_index?: number;
+  lord_element?: string;
+  lord_source?: string;
+  lord_source_zh?: string;
+  years_range?: string;
+  years_start?: number;
+  years_end?: number;
+  attribute_count?: number;
+  total_years?: number;
+}
+
+export interface JingzhaiDecadeAnalysis {
+  decade_index?: number;
+  years_range?: string;
+  years_start?: number;
+  years_end?: number;
+  lord_element?: string;
+  lord_source?: string;
+  lord_source_zh?: string;
+  diagnosis?: Record<string, unknown> | null;
+  affliction?: Record<string, unknown> | null;
+  pathogen?: Record<string, unknown> | null;
+  affected_persons?: Record<string, unknown> | null;
+  interactions?: Array<Record<string, unknown>>;
+  wealth_sources?: Array<Record<string, unknown>>;
+  leakage_sinks?: Array<Record<string, unknown>>;
+  support_sources?: Array<Record<string, unknown>>;
+}
+
+export interface JingzhaiHouseAnalysis {
+  status: "ok" | "partial" | "not_evaluable" | string;
+  reason_zh?: string;
+  reason_en?: string;
+  attributes?: {
+    sitting?: JingzhaiAttributeSummary;
+    floor?: JingzhaiAttributeSummary;
+    room?: JingzhaiAttributeSummary;
+  };
+  phases?: JingzhaiPhase[];
+  decade_analyses?: JingzhaiDecadeAnalysis[];
+  door_analysis?: Record<string, unknown> | null;
+  overall_summary?: {
+    total_decades_analyzed?: number;
+    afflicted_decades_count?: number;
+    has_affliction?: boolean;
+    summary_zh?: string;
+    summary_en?: string;
+  };
+  first_decade_only?: JingzhaiDecadeAnalysis;
+}
+
+export interface JingzhaiAffectedDecade {
+  decade_index?: number;
+  years_range?: string;
+  years_start?: number;
+  years_end?: number;
+  lord_element?: string;
+  pathogen_bagua?: string;
+  pathogen_bagua_zh?: string;
+  pathogen_element?: string;
+  matching_categories?: Array<Record<string, unknown>>;
+  person_bagua?: string;
+  person_bagua_zh?: string;
+}
+
+export interface JingzhaiPersonImpactPerson {
+  member_id: string;
+  name: string;
+  birth_year?: number;
+  gender?: OwnerGender | string;
+  minggua?: Record<string, unknown>;
+  status: "ok" | "not_evaluable" | "error" | string;
+  reason?: string;
+  is_affected?: boolean;
+  affected_decades_count?: number;
+  affected_decades?: JingzhaiAffectedDecade[];
+  summary_zh?: string;
+}
+
+export interface JingzhaiPersonImpact {
+  house_status: string;
+  persons: JingzhaiPersonImpactPerson[];
+  total_affected: number;
+  total_persons: number;
+}
+
+export interface JingzhaiFullResponse {
+  house_analysis: JingzhaiHouseAnalysis;
+  person_impact?: JingzhaiPersonImpact;
+}
+
 export type TabFindingFilterState = {
   structure: FindingFilter;
 };
@@ -392,6 +505,7 @@ export interface EvaluationSnapshot {
   response: RuleEvaluationResponse;
   bazhai_results: HouseholdBazhaiResponse | null;
   dongzhai_result: DongzhaiFloorEvaluateResponse | null;
+  jingzhai_result: JingzhaiFullResponse | null;
 }
 
 export interface ProjectSnapshot {

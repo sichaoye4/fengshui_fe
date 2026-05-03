@@ -300,6 +300,9 @@ function sanitizeEvaluation(raw: unknown): EvaluationSnapshot | null {
   if (!("dongzhai_result" in normalized)) {
     normalized.dongzhai_result = null;
   }
+  if (!("jingzhai_result" in normalized)) {
+    normalized.jingzhai_result = null;
+  }
   delete normalized.bazhai_result;
   return normalized as unknown as EvaluationSnapshot;
 }

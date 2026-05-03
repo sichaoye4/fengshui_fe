@@ -14,7 +14,7 @@
   - [../fengshui/README.md](../fengshui/README.md)
   - [../fengshui/docs/backend_api_contract.md](../fengshui/docs/backend_api_contract.md)
   - [../fengshui/fengshui_formula_summary.md](../fengshui/fengshui_formula_summary.md)
-- Last aligned with: compact 6-tab analysis layout, local subtabs for dense result panels, house-period diagnostics, and Dongzhai floor results.
+- Last aligned with: compact 6-tab analysis layout, Jingzhai/static-house results, local subtabs for dense result panels, house-period diagnostics, and Dongzhai floor results.
 
 ## Purpose
 
@@ -74,7 +74,7 @@ The top analysis tabs use short visible labels and full ARIA labels; data-heavy 
 4. `structure`
    - floorplan editor + manual structure/shape input + combined `INT-*`, `EXT-*`, `MIT-*` findings
 5. `static_house`
-   - placeholder only for now
+   - Jingzhai/static-house body analysis from `POST /api/v1/jingzhai/full`
 6. `dongzhai`
    - apartment/动宅 floor evaluation from `POST /api/v1/bazhai/dongzhai-floor`
 

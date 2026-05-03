@@ -3,6 +3,8 @@ import type {
   DongzhaiFloorEvaluateResponse,
   HouseholdBazhaiRequest,
   HouseholdBazhaiResponse,
+  JingzhaiFullRequest,
+  JingzhaiFullResponse,
   RuleEvaluateRequest,
   RuleEvaluationResponse
 } from "../types/fengshui";
@@ -58,6 +60,17 @@ export async function evaluateDongzhaiFloor(
   return postJson<DongzhaiFloorEvaluateRequest, DongzhaiFloorEvaluateResponse>(
     baseUrl,
     "/api/v1/bazhai/dongzhai-floor",
+    payload
+  );
+}
+
+export async function evaluateJingzhaiFull(
+  baseUrl: string,
+  payload: JingzhaiFullRequest
+): Promise<JingzhaiFullResponse> {
+  return postJson<JingzhaiFullRequest, JingzhaiFullResponse>(
+    baseUrl,
+    "/api/v1/jingzhai/full",
     payload
   );
 }

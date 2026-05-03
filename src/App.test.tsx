@@ -272,6 +272,108 @@ function installEvaluationFetchMock() {
         overall_label_en: "auspicious",
         warnings: []
       };
+    } else if (url.includes("/api/v1/jingzhai/full")) {
+      body = {
+        house_analysis: {
+          status: "ok",
+          attributes: {
+            sitting: { bagua: "KAN", bagua_zh: "坎", element: "WATER" },
+            floor: { number: 19, element: "WATER" },
+            room: { index: 2, element: "EARTH" }
+          },
+          phases: [
+            {
+              phase_index: 1,
+              lord_element: "WATER",
+              lord_source: "sitting",
+              lord_source_zh: "座山",
+              years_range: "1-10",
+              years_start: 1,
+              years_end: 10
+            },
+            {
+              phase_index: 2,
+              lord_element: "WATER",
+              lord_source: "floor",
+              lord_source_zh: "楼层",
+              years_range: "11-190",
+              years_start: 11,
+              years_end: 190
+            }
+          ],
+          decade_analyses: [
+            {
+              decade_index: 1,
+              years_range: "1-10",
+              years_start: 1,
+              years_end: 10,
+              lord_element: "WATER",
+              diagnosis: { type: "strong_with_wealth", en: "Body strong with wealth", zh: "身旺有财" },
+              affliction: null,
+              pathogen: null
+            },
+            {
+              decade_index: 2,
+              years_range: "11-20",
+              years_start: 11,
+              years_end: 20,
+              lord_element: "WATER",
+              diagnosis: null,
+              affliction: { type: "pathogen_present", type_zh: "病原在运" },
+              pathogen: { bagua: "KUN", bagua_zh: "坤", element: "EARTH" }
+            },
+            {
+              decade_index: 6,
+              years_range: "51-60",
+              years_start: 51,
+              years_end: 60,
+              lord_element: "WATER",
+              diagnosis: null,
+              affliction: { type: "pathogen_present", type_zh: "病原在运" },
+              pathogen: { bagua: "LI", bagua_zh: "离", element: "FIRE" }
+            }
+          ],
+          door_analysis: null,
+          overall_summary: {
+            total_decades_analyzed: 2,
+            afflicted_decades_count: 1,
+            has_affliction: true,
+            summary_zh: "静宅有一段病原在运",
+            summary_en: "One decade has pathogen influence"
+          }
+        },
+        person_impact: {
+          house_status: "ok",
+          total_affected: 1,
+          total_persons: 1,
+          persons: [
+            {
+              member_id: "member-1",
+              name: "Demo",
+              birth_year: 1994,
+              gender: "male",
+              minggua: { bagua: "QIAN", bagua_zh: "乾", group: "西四命" },
+              status: "ok",
+              is_affected: true,
+              affected_decades_count: 1,
+              affected_decades: [
+                {
+                  decade_index: 2,
+                  years_range: "11-20",
+                  lord_element: "WATER",
+                  pathogen_bagua: "KUN",
+                  pathogen_bagua_zh: "坤",
+                  pathogen_element: "EARTH",
+                  matching_categories: [{ category_zh: "绝命", label_zh: "绝命" }],
+                  person_bagua: "QIAN",
+                  person_bagua_zh: "乾"
+                }
+              ],
+              summary_zh: "受静宅运程影响"
+            }
+          ]
+        }
+      };
     } else if (url.includes("/api/v1/bazhai/person-house")) {
       body = {
         year: 1994,
@@ -417,6 +519,10 @@ describe("App tabbed workflow", () => {
     await user.clear(screen.getByLabelText("Total Floors"));
     await user.type(screen.getByLabelText("Total Floors"), "20");
     await user.selectOptions(screen.getByLabelText("Door Bagua"), "KUN");
+    await user.click(screen.getByRole("button", { name: "+ Add Member" }));
+    await user.type(screen.getByLabelText("Name"), "Demo");
+    await user.type(screen.getByLabelText("Birth Year"), "1994");
+    await user.selectOptions(screen.getByLabelText("Gender"), "male");
 
     await user.click(screen.getByRole("button", { name: "Run Evaluation" }));
 
@@ -430,14 +536,14 @@ describe("App tabbed workflow", () => {
       "TemporalM 0 / NE 0",
       "PeriodsM 0 / NE 0",
       "ShapeM 3 / NE 0",
-      "StaticM 0 / NE 0",
+      "StaticM 1 / NE 0",
       "DongzhaiM 1 / NE 0"
     ]);
     expect(screen.getByTestId("tab-badge-house_liqi")).toHaveTextContent("M 0 / NE 0");
     expect(screen.getByTestId("tab-badge-temporal")).toHaveTextContent("M 0 / NE 0");
     expect(screen.getByTestId("tab-badge-zhai_yun")).toHaveTextContent("M 0 / NE 0");
     expect(screen.getByTestId("tab-badge-structure")).toHaveTextContent("M 3 / NE 0");
-    expect(screen.getByTestId("tab-badge-static_house")).toHaveTextContent("M 0 / NE 0");
+    expect(screen.getByTestId("tab-badge-static_house")).toHaveTextContent("M 1 / NE 0");
     expect(screen.getByTestId("tab-badge-dongzhai")).toHaveTextContent("M 1 / NE 0");
 
     expect(screen.getByTestId("section-tab-bazhai")).toBeInTheDocument();
@@ -461,7 +567,15 @@ describe("App tabbed workflow", () => {
 
     await user.click(within(mainTabs).getByRole("tab", { name: /Static House/ }));
     expect(screen.getByText("Static House Evaluation")).toBeInTheDocument();
-    expect(screen.queryByText(/Score:/)).not.toBeInTheDocument();
+    expect(screen.getByText("House Body")).toBeInTheDocument();
+    expect(screen.getByText("Phase Timeline (Next 50 Years)")).toBeInTheDocument();
+    expect(screen.getByText(/11-50/)).toBeInTheDocument();
+    expect(screen.queryByText(/11-190/)).not.toBeInTheDocument();
+    expect(screen.getByText("Person Impact")).toBeInTheDocument();
+    expect(screen.queryByText("One decade has pathogen influence")).not.toBeInTheDocument();
+    await user.click(screen.getByText("Show next 50 years by decade"));
+    expect(screen.getByRole("cell", { name: "11-20" })).toBeInTheDocument();
+    expect(screen.queryByRole("cell", { name: "51-60" })).not.toBeInTheDocument();
 
     await user.click(within(mainTabs).getByRole("tab", { name: /Dongzhai Floor/ }));
     expect(screen.getByText("Dongzhai Floor")).toBeInTheDocument();

@@ -791,6 +791,67 @@ textarea {
   color: #8a4a0e;
 }
 
+.jingzhai-phase-list,
+.jingzhai-person-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.jingzhai-phase-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #d8e0e8;
+  border-radius: 8px;
+  background: rgba(248, 250, 252, 0.88);
+}
+
+.jingzhai-phase-index {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(179, 62, 42, 0.12);
+  color: var(--cinnabar-deep);
+  font-weight: 800;
+}
+
+.jingzhai-person-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #d8e0e8;
+  border-radius: 8px;
+  background: rgba(248, 250, 252, 0.88);
+}
+
+.jingzhai-person-card.good {
+  border-color: rgba(48, 132, 81, 0.38);
+}
+
+.jingzhai-person-card.bad,
+.jingzhai-afflicted-row {
+  background: rgba(179, 62, 42, 0.08);
+}
+
+.jingzhai-decade-details {
+  display: grid;
+  gap: 8px;
+}
+
+.jingzhai-decade-details summary {
+  cursor: pointer;
+  color: var(--ink-700);
+  font-weight: 700;
+}
+
+.jingzhai-table-wrap {
+  max-height: 420px;
+}
+
 .severity-pill {
   display: inline-block;
   border-radius: 999px;

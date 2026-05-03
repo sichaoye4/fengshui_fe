@@ -4,6 +4,7 @@ import {
   createDongzhaiFloorRequest,
   createEvaluationRequest,
   createHouseholdBazhaiRequest,
+  createJingzhaiFullRequest,
   getBazhaiMissingFields,
   getDongzhaiMissingFields,
   hashPayload
@@ -173,5 +174,46 @@ describe("createEvaluationRequest", () => {
       "house.current_floor.within_total_floors"
     ]);
     expect(createDongzhaiFloorRequest(inputs)).toBeNull();
+  });
+
+  it("builds jingzhai full requests with only evaluable household members", () => {
+    const editor = createDefaultEditorState();
+    const inputs = createDefaultInputState();
+    inputs.temporal.gregorian_date = "2024-05-02";
+    inputs.house.current_floor = "3";
+    inputs.house.room_index = "2";
+    inputs.members = [
+      {
+        id: "member-1",
+        name: "Alice",
+        birth_year: "1990",
+        gender: "female",
+        is_primary_resident: true,
+        relationship: "owner"
+      },
+      {
+        id: "member-2",
+        name: "Incomplete",
+        birth_year: "",
+        gender: "male",
+        is_primary_resident: false,
+        relationship: "other"
+      }
+    ];
+
+    const request = createJingzhaiFullRequest(editor, inputs, deriveProjectState(editor, inputs));
+
+    expect(request.solar_year).toBe(2024);
+    expect(request.house_profile.sitting_bagua).toBe("KAN");
+    expect(request.house_profile.current_floor).toBe(3);
+    expect(request.house_profile.room_index).toBe(2);
+    expect(request.persons).toEqual([
+      {
+        member_id: "member-1",
+        name: "Alice",
+        birth_year: 1990,
+        gender: "female"
+      }
+    ]);
   });
 });
