@@ -1,4 +1,4 @@
-import { API_BASE_URL, createDefaultEditorState, createDefaultInputState } from "../constants";
+import { createDefaultEditorState, createDefaultInputState } from "../constants";
 import { deriveProjectState } from "../lib/derivation";
 import type {
   AnalysisTab,
@@ -27,7 +27,6 @@ export interface AppState {
   activeTab: AnalysisTab;
   analysisMode: "jingzhai" | "dongzhai";
   tabFindingFilters: TabFindingFilterState;
-  apiBaseUrl: string;
   showAdvancedExternal: boolean;
   placeEntranceMode: boolean;
   loading: boolean;
@@ -51,7 +50,6 @@ export type AppAction =
   | { type: "set_tab_finding_filter"; tab: keyof TabFindingFilterState; filter: FindingFilter }
   | { type: "reset_tab_finding_filters" }
   | { type: "set_analysis_mode"; mode: "jingzhai" | "dongzhai" }
-  | { type: "set_api_base_url"; value: string }
   | { type: "set_show_advanced_external"; value: boolean }
   | { type: "set_place_entrance_mode"; value: boolean }
   | { type: "set_loading"; value: boolean }
@@ -111,7 +109,6 @@ export function createInitialAppState(snapshot: ProjectSnapshot | null): AppStat
     tabFindingFilters: {
       structure: "all"
     },
-    apiBaseUrl: API_BASE_URL,
     showAdvancedExternal: false,
     placeEntranceMode: false,
     loading: false,
@@ -169,8 +166,6 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       };
     case "set_analysis_mode":
       return { ...state, analysisMode: action.mode };
-    case "set_api_base_url":
-      return { ...state, apiBaseUrl: action.value };
     case "set_show_advanced_external":
       return { ...state, showAdvancedExternal: action.value };
     case "set_place_entrance_mode":

@@ -112,7 +112,9 @@ export interface HouseMetaInput {
   total_floors: string;
   current_floor: string;
   house_index: string;
+  room_index?: string;
   room_count: string;
+  static_cycle_reversed?: boolean;
 }
 
 export interface CaseContactInput {
@@ -220,6 +222,7 @@ export interface RuleEvaluateRequest {
     current_floor?: number;
     room_index?: number;
     room_count?: number;
+    static_cycle_reversed?: boolean;
     house_area_m2: number;
     mingtang_area_m2: number;
     flags: Record<string, boolean>;
@@ -462,6 +465,8 @@ export interface JingzhaiDoorRecommendation {
   rationale_en: string;
   condition: string;
 }
+
+export interface JingzhaiHouseAnalysis {
   status: "ok" | "partial" | "not_evaluable" | string;
   reason_zh?: string;
   reason_en?: string;

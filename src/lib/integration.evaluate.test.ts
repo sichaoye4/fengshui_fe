@@ -41,7 +41,7 @@ describe("evaluateRules integration", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await evaluateRules("http://127.0.0.1:8000", payload);
+    const result = await evaluateRules(payload);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[0]).toContain("/api/v1/rules/evaluate");
@@ -74,7 +74,7 @@ describe("evaluateRules integration", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await evaluateHouseholdBazhai("http://127.0.0.1:8000", {
+    const result = await evaluateHouseholdBazhai({
       house_bagua: "KAN",
       members: [
         {

@@ -201,7 +201,9 @@ function sanitizeHouse(raw: unknown, defaults: HouseMetaInput): HouseMetaInput {
     total_floors: readString(source.total_floors, defaults.total_floors),
     current_floor: readString(source.current_floor, defaults.current_floor),
     house_index: readString(source.house_index ?? source.room_index, defaults.house_index),
-    room_count: readString(source.room_count, defaults.room_count)
+    room_index: readString(source.house_index ?? source.room_index, defaults.house_index),
+    room_count: readString(source.room_count, defaults.room_count),
+    static_cycle_reversed: readBoolean(source.static_cycle_reversed, defaults.static_cycle_reversed ?? false)
   };
 }
 

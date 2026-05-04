@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, type ChangeEvent } from "react";
+import { useEffect, useMemo, useReducer, useState, type ChangeEvent } from "react";
 import {
   BAGUA_OPTIONS,
   DIRECTION24_OPTIONS,
@@ -203,6 +203,7 @@ export default function App(): JSX.Element {
     undefined,
     () => createInitialAppState(loadDraft())
   );
+  const [evaluationRippleKey, setEvaluationRippleKey] = useState(0);
 
   const derived = useMemo(() => deriveProjectState(state.editor, state.inputs), [state.editor, state.inputs]);
   const rooms = useMemo(
@@ -245,7 +246,6 @@ export default function App(): JSX.Element {
     [shapeFindings, structureFindings]
   );
 
-  // Auto-switch tab when analysis mode changes
   useEffect(() => {
     if (state.analysisMode === "jingzhai" && state.activeTab === "dongzhai") {
       dispatch({ type: "set_active_tab", tab: "static_house" });
@@ -254,7 +254,6 @@ export default function App(): JSX.Element {
     }
   }, [state.analysisMode, state.activeTab]);
 
-  // Filter tabs based on analysis mode (jingzhai ↔ static_house, dongzhai ↔ dongzhai)
   const visibleTabs = useMemo(
     () =>
       ANALYSIS_TABS.filter((tab) => {
@@ -313,12 +312,12 @@ export default function App(): JSX.Element {
 
     try {
       const payload = createEvaluationRequest(state.editor, state.inputs, derived);
-      const response = await evaluateRules(state.apiBaseUrl, payload);
+      const response = await evaluateRules(payload);
       const bazhaiPayload = createHouseholdBazhaiRequest(state.inputs);
       let bazhaiResult = null;
       if (bazhaiPayload) {
         try {
-          bazhaiResult = await evaluateHouseholdBazhai(state.apiBaseUrl, bazhaiPayload);
+          bazhaiResult = await evaluateHouseholdBazhai(bazhaiPayload);
         } catch (err) {
           dispatch({
             type: "set_error",
@@ -333,7 +332,7 @@ export default function App(): JSX.Element {
         const dongzhaiPayload = createDongzhaiFloorRequest(state.inputs);
         if (dongzhaiPayload) {
           try {
-            dongzhaiResult = await evaluateDongzhaiFloor(state.apiBaseUrl, dongzhaiPayload);
+            dongzhaiResult = await evaluateDongzhaiFloor(dongzhaiPayload);
           } catch (err) {
             dispatch({
               type: "set_error",
@@ -345,10 +344,7 @@ export default function App(): JSX.Element {
 
       if (state.analysisMode === "jingzhai") {
         try {
-          jingzhaiResult = await evaluateJingzhaiFull(
-            state.apiBaseUrl,
-            createJingzhaiFullRequest(state.editor, state.inputs, derived)
-          );
+          jingzhaiResult = await evaluateJingzhaiFull(createJingzhaiFullRequest(state.editor, state.inputs, derived));
         } catch (err) {
           dispatch({
             type: "set_error",
@@ -376,11 +372,7 @@ export default function App(): JSX.Element {
         // Gregorian conversion
         if (state.inputs.temporal.gregorian_date) {
           temporalPromises.push(
-            fetchGregorianConversion(
-              state.apiBaseUrl,
-              state.inputs.temporal.gregorian_date,
-              state.inputs.temporal.gregorian_time || undefined
-            )
+            fetchGregorianConversion(state.inputs.temporal.gregorian_date, state.inputs.temporal.gregorian_time || undefined)
               .then((result: GregorianConversionResponse) => dispatch({ type: "set_temporal_data", value: { gregorianConversion: result } }))
               .catch(() => { /* temporal is supplementary */ })
           );
@@ -388,7 +380,7 @@ export default function App(): JSX.Element {
 
         // Annual temporal
         temporalPromises.push(
-          fetchAnnualTemporal(state.apiBaseUrl, baziDate.year_pillar)
+          fetchAnnualTemporal(baziDate.year_pillar)
             .then((result: TemporalAnnualResponse) => dispatch({ type: "set_temporal_data", value: { annual: result } }))
             .catch(() => {})
         );
@@ -397,14 +389,14 @@ export default function App(): JSX.Element {
         const solarYear = new Date(state.inputs.temporal.gregorian_date).getFullYear();
         if (!Number.isNaN(solarYear)) {
           temporalPromises.push(
-            fetchAnnualFlyingStar(state.apiBaseUrl, solarYear)
+            fetchAnnualFlyingStar(solarYear)
               .then((result: FlyingStarAnnualResponse) => dispatch({ type: "set_temporal_data", value: { flyingStar: result } }))
               .catch(() => {})
           );
 
           if (state.inputs.house.sitting_bagua) {
             dispatch({ type: "set_period_loading", value: true });
-            fetchFourYunProfile(state.apiBaseUrl, solarYear, state.inputs.house.sitting_bagua)
+            fetchFourYunProfile(solarYear, state.inputs.house.sitting_bagua)
               .then((result: PeriodFourYunResponse) => dispatch({ type: "set_period_data", value: result }))
               .catch(() => {})
               .finally(() => dispatch({ type: "set_period_loading", value: false }));
@@ -414,7 +406,7 @@ export default function App(): JSX.Element {
         // Monthly temporal
         if (baziDate.month_ganzhi_code) {
           temporalPromises.push(
-            fetchMonthlyTemporal(state.apiBaseUrl, baziDate.year_pillar, baziDate.month_ganzhi_code)
+            fetchMonthlyTemporal(baziDate.year_pillar, baziDate.month_ganzhi_code)
               .then((result: TemporalMonthlyResponse) => dispatch({ type: "set_temporal_data", value: { monthly: result } }))
               .catch(() => {})
           );
@@ -423,7 +415,7 @@ export default function App(): JSX.Element {
         // Fetch Liqi house profile
         if (state.inputs.house.sitting_bagua) {
           temporalPromises.push(
-            fetchLiqiHouseProfile(state.apiBaseUrl, state.inputs.house.sitting_bagua)
+            fetchLiqiHouseProfile(state.inputs.house.sitting_bagua)
               .then((result: LiqiHouseResponse) => dispatch({ type: "set_liqi_house_profile", value: result }))
               .catch(() => {})
           );
@@ -441,6 +433,11 @@ export default function App(): JSX.Element {
     } finally {
       dispatch({ type: "set_loading", value: false });
     }
+  };
+
+  const handleRunEvaluation = () => {
+    setEvaluationRippleKey((key) => key + 1);
+    void runEvaluation();
   };
 
   const handleImport = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -551,6 +548,23 @@ export default function App(): JSX.Element {
                     {BAGUA_OPTIONS.map((item) => (
                       <option key={item} value={item}>
                         {renderBaguaLabel(item)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  {ui("app.shape.incomingShaElement")}
+                  <select
+                    value={state.inputs.manual_categories.incoming_sha_element}
+                    onChange={(event) => {
+                      const next = event.currentTarget.value as ManualCategories["incoming_sha_element"];
+                      dispatch({ type: "set_manual_category", key: "incoming_sha_element", value: next });
+                    }}
+                  >
+                    {WUXING_OPTIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {renderWuxingLabel(item)}
                       </option>
                     ))}
                   </select>
@@ -947,16 +961,18 @@ export default function App(): JSX.Element {
             <section className="common-context-section evaluate-section">
               <h4 className="common-context-subtitle">{ui("app.evaluate.title")}</h4>
               <div className="form-grid two-col compact-grid">
-                <label className="span-2">
-                  {ui("app.evaluate.apiBaseUrl")}
-                  <input
-                    value={state.apiBaseUrl}
-                    onChange={(event) => dispatch({ type: "set_api_base_url", value: event.currentTarget.value })}
-                  />
-                </label>
-
-                <button type="button" className="primary" onClick={runEvaluation} disabled={state.loading}>
-                  {state.loading ? ui("app.evaluate.evaluating") : ui("app.evaluate.run")}
+                <button
+                  type="button"
+                  className="primary evaluate-run-button"
+                  onClick={handleRunEvaluation}
+                  disabled={state.loading}
+                >
+                  <span className="evaluate-run-label">
+                    {state.loading ? ui("app.evaluate.evaluating") : ui("app.evaluate.run")}
+                  </span>
+                  {evaluationRippleKey > 0 && (
+                    <span key={evaluationRippleKey} className="evaluate-run-ink" aria-hidden="true" />
+                  )}
                 </button>
 
                 <button type="button" onClick={() => exportProject(toProjectSnapshot(state))}>

@@ -242,9 +242,10 @@ export function createEvaluationRequest(
   );
   const totalFloors = parseOptionalPositiveInteger(inputs.house.total_floors);
   const currentFloor = parseOptionalPositiveInteger(inputs.house.current_floor);
-  // UI field: house_index → API wire field: room_index (see backend_api_contract.md)
-  const roomIndex = parseOptionalPositiveInteger(inputs.house.house_index);
+  // UI field: house_index -> API wire field: room_index (see backend_api_contract.md)
+  const roomIndex = parseOptionalPositiveInteger(inputs.house.house_index || inputs.house.room_index || "");
   const roomCount = parseOptionalPositiveInteger(inputs.house.room_count);
+  const staticCycleReversed = inputs.house.static_cycle_reversed === true;
 
   const payload: RuleEvaluateRequest = {
     house_profile: {
@@ -258,6 +259,7 @@ export function createEvaluationRequest(
       ...(currentFloor !== null ? { current_floor: currentFloor } : {}),
       ...(roomIndex !== null ? { room_index: roomIndex } : {}),
       ...(roomCount !== null ? { room_count: roomCount } : {}),
+      ...(staticCycleReversed ? { static_cycle_reversed: true } : {}),
       house_area_m2: sanitizeNumber(derived.house_area_m2),
       mingtang_area_m2: sanitizeNumber(derived.mingtang_area_m2),
       flags: { ...derived.flags },
@@ -291,7 +293,8 @@ export function createEvaluationRequest(
           total_floors: totalFloors,
           current_floor: currentFloor,
           room_index: roomIndex,
-          room_count: roomCount
+          room_count: roomCount,
+          static_cycle_reversed: staticCycleReversed
         },
         gregorian_date: inputs.temporal.gregorian_date,
         gregorian_time: inputs.temporal.gregorian_time,

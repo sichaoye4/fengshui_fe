@@ -55,7 +55,7 @@ describe.runIf(runLive)("live UI-backend integration", () => {
 
     const derived = deriveProjectState(editor, inputs);
     const payload = createEvaluationRequest(editor, inputs, derived);
-    const result = await evaluateRules(baseUrl, payload);
+    const result = await evaluateRules(payload, baseUrl);
 
     expect(result.house_name).toBe("live_integration_house");
     expect(result.findings.length).toBeGreaterThan(0);
@@ -70,7 +70,7 @@ describe.runIf(runLive)("live UI-backend integration", () => {
 
     (payload.house_profile as { sitting_bagua: string }).sitting_bagua = "kan";
 
-    await expect(evaluateRules(baseUrl, payload)).rejects.toThrow();
+    await expect(evaluateRules(payload, baseUrl)).rejects.toThrow();
   });
 
   it("keeps frontend bazi constants aligned with backend temporal constants", async () => {

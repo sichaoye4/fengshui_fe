@@ -6,8 +6,6 @@ import type {
   Tool
 } from "./types/fengshui";
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
-
 export const PIXELS_PER_METER = 100;
 export const DEFAULT_CANVAS_SIZE = { width: 960, height: 640 };
 

@@ -7,7 +7,7 @@ import type {
   TemporalMonthlyResponse,
 } from "../types/fengshui";
 
-async function getJson<TResponse>(baseUrl: string, path: string): Promise<TResponse> {
+async function getJson<TResponse>(path: string, baseUrl = ""): Promise<TResponse> {
   const response = await fetch(`${baseUrl}${path}`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
@@ -34,17 +34,17 @@ async function getJson<TResponse>(baseUrl: string, path: string): Promise<TRespo
  * GET /api/v1/temporal/convert/gregorian
  */
 export async function fetchGregorianConversion(
-  baseUrl: string,
   date: string,
   time?: string,
-  timezone?: string
+  timezone?: string,
+  baseUrl = ""
 ): Promise<GregorianConversionResponse> {
   const params = new URLSearchParams({ date });
   if (time) params.set("time", time);
   if (timezone) params.set("timezone", timezone);
   return getJson<GregorianConversionResponse>(
-    baseUrl,
-    `/api/v1/temporal/convert/gregorian?${params.toString()}`
+    `/api/v1/temporal/convert/gregorian?${params.toString()}`,
+    baseUrl
   );
 }
 
@@ -53,13 +53,13 @@ export async function fetchGregorianConversion(
  * GET /api/v1/temporal/annual?year_ganzhi=...
  */
 export async function fetchAnnualTemporal(
-  baseUrl: string,
-  yearGanzhi: string
+  yearGanzhi: string,
+  baseUrl = ""
 ): Promise<TemporalAnnualResponse> {
   const params = new URLSearchParams({ year_ganzhi: yearGanzhi });
   return getJson<TemporalAnnualResponse>(
-    baseUrl,
-    `/api/v1/temporal/annual?${params.toString()}`
+    `/api/v1/temporal/annual?${params.toString()}`,
+    baseUrl
   );
 }
 
@@ -68,14 +68,14 @@ export async function fetchAnnualTemporal(
  * GET /api/v1/temporal/monthly?year_ganzhi=...&month_ganzhi=...
  */
 export async function fetchMonthlyTemporal(
-  baseUrl: string,
   yearGanzhi: string,
-  monthGanzhi: string
+  monthGanzhi: string,
+  baseUrl = ""
 ): Promise<TemporalMonthlyResponse> {
   const params = new URLSearchParams({ year_ganzhi: yearGanzhi, month_ganzhi: monthGanzhi });
   return getJson<TemporalMonthlyResponse>(
-    baseUrl,
-    `/api/v1/temporal/monthly?${params.toString()}`
+    `/api/v1/temporal/monthly?${params.toString()}`,
+    baseUrl
   );
 }
 
@@ -84,13 +84,13 @@ export async function fetchMonthlyTemporal(
  * GET /api/v1/temporal/flying-star/annual?solar_year=...
  */
 export async function fetchAnnualFlyingStar(
-  baseUrl: string,
-  solarYear: number
+  solarYear: number,
+  baseUrl = ""
 ): Promise<FlyingStarAnnualResponse> {
   const params = new URLSearchParams({ solar_year: String(solarYear) });
   return getJson<FlyingStarAnnualResponse>(
-    baseUrl,
-    `/api/v1/temporal/flying-star/annual?${params.toString()}`
+    `/api/v1/temporal/flying-star/annual?${params.toString()}`,
+    baseUrl
   );
 }
 
@@ -99,17 +99,17 @@ export async function fetchAnnualFlyingStar(
  * GET /api/v1/periods/four-yun?solar_year=...&sitting_bagua=...
  */
 export async function fetchFourYunProfile(
-  baseUrl: string,
   solarYear: number,
-  sittingBagua: string
+  sittingBagua: string,
+  baseUrl = ""
 ): Promise<PeriodFourYunResponse> {
   const params = new URLSearchParams({
     solar_year: String(solarYear),
     sitting_bagua: sittingBagua,
   });
   return getJson<PeriodFourYunResponse>(
-    baseUrl,
-    `/api/v1/periods/four-yun?${params.toString()}`
+    `/api/v1/periods/four-yun?${params.toString()}`,
+    baseUrl
   );
 }
 
@@ -118,11 +118,11 @@ export async function fetchFourYunProfile(
  * GET /api/v1/liqi/house/{sitting_bagua}
  */
 export async function fetchLiqiHouseProfile(
-  baseUrl: string,
-  sittingBagua: string
+  sittingBagua: string,
+  baseUrl = ""
 ): Promise<LiqiHouseResponse> {
   return getJson<LiqiHouseResponse>(
-    baseUrl,
-    `/api/v1/liqi/house/${sittingBagua}`
+    `/api/v1/liqi/house/${sittingBagua}`,
+    baseUrl
   );
 }

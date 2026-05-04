@@ -10,9 +10,9 @@ import type {
 } from "../types/fengshui";
 
 async function postJson<TRequest, TResponse>(
-  baseUrl: string,
   path: string,
-  payload: TRequest
+  payload: TRequest,
+  baseUrl = ""
 ): Promise<TResponse> {
   const response = await fetch(`${baseUrl}${path}`, {
     method: "POST",
@@ -38,39 +38,42 @@ async function postJson<TRequest, TResponse>(
   return (await response.json()) as TResponse;
 }
 
-export async function evaluateRules(baseUrl: string, payload: RuleEvaluateRequest): Promise<RuleEvaluationResponse> {
-  return postJson<RuleEvaluateRequest, RuleEvaluationResponse>(baseUrl, "/api/v1/rules/evaluate", payload);
+export async function evaluateRules(
+  payload: RuleEvaluateRequest,
+  baseUrl = ""
+): Promise<RuleEvaluationResponse> {
+  return postJson<RuleEvaluateRequest, RuleEvaluationResponse>("/api/v1/rules/evaluate", payload, baseUrl);
 }
 
 export async function evaluateHouseholdBazhai(
-  baseUrl: string,
-  payload: HouseholdBazhaiRequest
+  payload: HouseholdBazhaiRequest,
+  baseUrl = ""
 ): Promise<HouseholdBazhaiResponse> {
   return postJson<HouseholdBazhaiRequest, HouseholdBazhaiResponse>(
-    baseUrl,
     "/api/v1/bazhai/household-person-house",
-    payload
+    payload,
+    baseUrl
   );
 }
 
 export async function evaluateDongzhaiFloor(
-  baseUrl: string,
-  payload: DongzhaiFloorEvaluateRequest
+  payload: DongzhaiFloorEvaluateRequest,
+  baseUrl = ""
 ): Promise<DongzhaiFloorEvaluateResponse> {
   return postJson<DongzhaiFloorEvaluateRequest, DongzhaiFloorEvaluateResponse>(
-    baseUrl,
     "/api/v1/bazhai/dongzhai-floor",
-    payload
+    payload,
+    baseUrl
   );
 }
 
 export async function evaluateJingzhaiFull(
-  baseUrl: string,
-  payload: JingzhaiFullRequest
+  payload: JingzhaiFullRequest,
+  baseUrl = ""
 ): Promise<JingzhaiFullResponse> {
   return postJson<JingzhaiFullRequest, JingzhaiFullResponse>(
-    baseUrl,
     "/api/v1/jingzhai/full",
-    payload
+    payload,
+    baseUrl
   );
 }

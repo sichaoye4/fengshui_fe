@@ -30,13 +30,14 @@ npm install
 npm run dev
 ```
 
-The dev server starts at `http://127.0.0.1:5173`. By default it sends API requests to `http://127.0.0.1:8000` — you can change this URL in the UI's API base URL input field.
+The dev server starts at `http://127.0.0.1:5173`. Browser API calls use relative `/api/...` URLs and are proxied by Vite to `FENGSHUI_API_BASE_URL`, which defaults to `http://127.0.0.1:8000`. Put the value in `.env` or set it in the shell before starting the frontend.
 
 ### Scripts
 
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start local development server with hot-reload |
+| `npm run intra` | Start development server on `0.0.0.0` for intranet access |
 | `npm run build` | TypeScript type-check + production build |
 | `npm test` | Run Vitest test suite |
 
@@ -51,6 +52,7 @@ The dev server starts at `http://127.0.0.1:5173`. By default it sends API reques
 2. In a separate terminal, start the frontend:
    ```bash
    cd ../fengshui_fe
+   # optional: set FENGSHUI_API_BASE_URL if the backend is not on 127.0.0.1:8000
    npm run dev
    ```
 3. Open `http://127.0.0.1:5173` in a browser.
@@ -116,7 +118,7 @@ The top analysis tabs use short visible labels and full ARIA labels; data-heavy 
 5. `static_house`
    - Jingzhai/static-house body analysis from `POST /api/v1/jingzhai/full`
 6. `dongzhai`
-   - apartment/动宅 floor evaluation from `POST /api/v1/bazhai/dongzhai-floor`
+   - apartment/鍔ㄥ畢 floor evaluation from `POST /api/v1/bazhai/dongzhai-floor`
 
 ### Data Flow
 
@@ -222,13 +224,13 @@ Read first:
 
 ### Change API wiring
 
-Wire field names in payload builders must match the backend contract. The UI field name may differ from the API wire name — `payload.ts` is the mapping layer that must be reviewed independently.
+Wire field names in payload builders must match the backend contract. The UI field name may differ from the API wire name 鈥?`payload.ts` is the mapping layer that must be reviewed independently.
 
 Read first:
 
 - `src/api/client.ts` or `src/api/temporal.ts`
 - `src/lib/payload.ts`
-- [../fengshui/docs/backend_api_contract.md](../fengshui/docs/backend_api_contract.md) — wire field inventory
+- [../fengshui/docs/backend_api_contract.md](../fengshui/docs/backend_api_contract.md) 鈥?wire field inventory
 
 ## Related Docs
 

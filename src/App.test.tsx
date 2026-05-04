@@ -433,11 +433,14 @@ describe("App tabbed workflow", () => {
     await user.click(within(mainTabs).getByRole("tab", { name: /Plan \+ Indoor Sha/ }));
     expect(screen.getByLabelText("Facing Bagua")).toHaveValue("LI");
 
-    await user.click(within(mainTabs).getByRole("tab", { name: /Static House/ }));
+    await user.click(within(mainTabs).getByRole("tab", { name: /Jingzhai/ }));
     expect(screen.getByLabelText("Facing Bagua")).toHaveValue("LI");
 
+    expect(within(mainTabs).queryByRole("tab", { name: /Dongzhai Floor/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Dongzhai" }));
     await user.click(within(mainTabs).getByRole("tab", { name: /Dongzhai Floor/ }));
     expect(screen.getByLabelText("Facing Bagua")).toHaveValue("LI");
+    expect(within(mainTabs).queryByRole("tab", { name: /Jingzhai/ })).not.toBeInTheDocument();
   });
 
   it("splits inputs into house, time board, and household members sections", () => {
@@ -507,14 +510,14 @@ describe("App tabbed workflow", () => {
     expect(doorElementSelect).toHaveValue("WATER");
   });
 
-  it("splits results into house liqi, temporal, house periods, structure, static, and dongzhai tabs", async () => {
+  it("uses zhai ti selection to expose either jingzhai or dongzhai result tabs", async () => {
     const user = userEvent.setup();
     installEvaluationFetchMock();
 
     render(<App />);
     await user.selectOptions(screen.getByLabelText("Facing Bagua"), "ZHEN");
-    await user.clear(screen.getByLabelText("Current Floor"));
-    await user.type(screen.getByLabelText("Current Floor"), "19");
+    await user.clear(screen.getByLabelText("House Index (Zhai Hao)"));
+    await user.type(screen.getByLabelText("House Index (Zhai Hao)"), "2");
     await user.click(screen.getByText("Advanced Foundation Inputs"));
     await user.clear(screen.getByLabelText("Total Floors"));
     await user.type(screen.getByLabelText("Total Floors"), "20");
@@ -536,15 +539,14 @@ describe("App tabbed workflow", () => {
       "TemporalM 0 / NE 0",
       "PeriodsM 0 / NE 0",
       "ShapeM 3 / NE 0",
-      "StaticM 1 / NE 0",
-      "DongzhaiM 1 / NE 0"
+      "JingzhaiM 1 / NE 0"
     ]);
+    expect(within(mainTabs).queryByRole("tab", { name: /Dongzhai Floor/ })).not.toBeInTheDocument();
     expect(screen.getByTestId("tab-badge-house_liqi")).toHaveTextContent("M 0 / NE 0");
     expect(screen.getByTestId("tab-badge-temporal")).toHaveTextContent("M 0 / NE 0");
     expect(screen.getByTestId("tab-badge-zhai_yun")).toHaveTextContent("M 0 / NE 0");
     expect(screen.getByTestId("tab-badge-structure")).toHaveTextContent("M 3 / NE 0");
     expect(screen.getByTestId("tab-badge-static_house")).toHaveTextContent("M 1 / NE 0");
-    expect(screen.getByTestId("tab-badge-dongzhai")).toHaveTextContent("M 1 / NE 0");
 
     expect(screen.getByTestId("section-tab-bazhai")).toBeInTheDocument();
     expect(screen.getByTestId("section-tab-liqi")).toBeInTheDocument();
@@ -565,8 +567,8 @@ describe("App tabbed workflow", () => {
     expect(screen.getByRole("cell", { name: "MIT-001" })).toBeInTheDocument();
     expect(screen.getByTestId("floorplan-editor-mock")).toBeInTheDocument();
 
-    await user.click(within(mainTabs).getByRole("tab", { name: /Static House/ }));
-    expect(screen.getByText("Static House Evaluation")).toBeInTheDocument();
+    await user.click(within(mainTabs).getByRole("tab", { name: /Jingzhai/ }));
+    expect(screen.getByText("Jingzhai Evaluation")).toBeInTheDocument();
     expect(screen.getByText("House Body")).toBeInTheDocument();
     expect(screen.getByText("Phase Timeline (Next 50 Years)")).toBeInTheDocument();
     expect(screen.getByText(/11-50/)).toBeInTheDocument();
@@ -577,6 +579,13 @@ describe("App tabbed workflow", () => {
     expect(screen.getByRole("cell", { name: "11-20" })).toBeInTheDocument();
     expect(screen.queryByRole("cell", { name: "51-60" })).not.toBeInTheDocument();
 
+    await user.click(screen.getByRole("button", { name: "Dongzhai" }));
+    expect(within(mainTabs).queryByRole("tab", { name: /Jingzhai/ })).not.toBeInTheDocument();
+    expect(within(mainTabs).getByRole("tab", { name: /Dongzhai Floor/ })).toBeInTheDocument();
+    await user.clear(screen.getByLabelText("Current Floor"));
+    await user.type(screen.getByLabelText("Current Floor"), "19");
+    await user.click(screen.getByRole("button", { name: "Run Evaluation" }));
+    await waitFor(() => expect(screen.getByTestId("tab-badge-dongzhai")).toHaveTextContent("M 1 / NE 0"));
     await user.click(within(mainTabs).getByRole("tab", { name: /Dongzhai Floor/ }));
     expect(screen.getByText("Dongzhai Floor")).toBeInTheDocument();
     expect(screen.getByText("Current Floor Evaluation")).toBeInTheDocument();
