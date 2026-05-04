@@ -25,6 +25,11 @@ describe("persistence hydration", () => {
           mingtang_width_m: 1.8,
           front_pair_gap_distance_m: 5
         },
+        manual_categories: {
+          incoming_sha_element: "WATER",
+          self_strength: "weak",
+          incoming_strength: "strong"
+        },
         house_area_override_m2: 120,
         mingtang_area_override_m2: 30
       },
@@ -45,6 +50,11 @@ describe("persistence hydration", () => {
     expect(hydrated.inputs.temporal.lunar_month).toBe("3");
     expect(hydrated.inputs.temporal.gregorian_time).toBe("12:00:00");
     expect(hydrated.inputs.manual_measurements.house_height_m).toBe("3.2");
+    expect(hydrated.inputs.manual_categories).toMatchObject({
+      self_strength: "weak",
+      incoming_strength: "strong"
+    });
+    expect(hydrated.inputs.manual_categories).not.toHaveProperty("incoming_sha_element");
     expect(hydrated.inputs.house_area_override_m2).toBe("120");
   });
 

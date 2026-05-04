@@ -48,7 +48,6 @@ describe.runIf(runLive)("live UI-backend integration", () => {
     ];
     inputs.manual_flags.stair_in_center = true;
     inputs.manual_flags.main_door_toilet_door_opposed = true;
-    inputs.manual_categories.incoming_sha_element = "WOOD";
     inputs.manual_categories.self_strength = "weak";
     inputs.manual_categories.incoming_strength = "strong";
     inputs.external_sha_flags.external_sha_001 = true;

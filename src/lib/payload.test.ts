@@ -54,6 +54,11 @@ describe("createEvaluationRequest", () => {
     expect(payload.temporal_context.notes.rule_month).toBe(3);
     expect(payload.house_profile.flags).toHaveProperty("external_sha_001");
     expect(payload.house_profile.internal_layout.counts).toHaveProperty("entry_qi_turns");
+    expect(payload.house_profile.categories).not.toHaveProperty("incoming_sha_element");
+    expect(payload.house_profile.categories).toMatchObject({
+      self_strength: "normal",
+      incoming_strength: "normal"
+    });
   });
 
   it("maps newly exposed foundational house fields", () => {

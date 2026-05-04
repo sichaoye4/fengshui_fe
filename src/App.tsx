@@ -6,8 +6,7 @@ import {
   HOUSEHOLD_RELATIONSHIP_OPTIONS,
   MAX_HOUSEHOLD_MEMBERS,
   OWNER_GENDER_OPTIONS,
-  STRENGTH_OPTIONS,
-  WUXING_OPTIONS
+  STRENGTH_OPTIONS
 } from "./constants";
 import { evaluateDongzhaiFloor, evaluateHouseholdBazhai, evaluateJingzhaiFull, evaluateRules } from "./api/client";
 import { fetchAnnualFlyingStar, fetchAnnualTemporal, fetchFourYunProfile, fetchGregorianConversion, fetchLiqiHouseProfile, fetchMonthlyTemporal } from "./api/temporal";
@@ -49,8 +48,7 @@ import type {
   ManualCategories,
   PeriodFourYunResponse,
   TemporalAnnualResponse,
-  TemporalMonthlyResponse,
-  WuXingCode
+  TemporalMonthlyResponse
 } from "./types/fengshui";
 
 type ManualFlagKey = keyof InputDraftState["manual_flags"];
@@ -122,14 +120,6 @@ const BAGUA_ZH_LABELS: Record<BaguaCode, string> = {
   KUN: "坤"
 };
 
-const WUXING_ZH_LABELS: Record<WuXingCode, string> = {
-  WOOD: "木",
-  FIRE: "火",
-  EARTH: "土",
-  METAL: "金",
-  WATER: "水"
-};
-
 const BAGUA_DISPLAY_ZH_LABELS: Record<BaguaCode, string> = {
   QIAN: "\u4e7e",
   DUI: "\u5151",
@@ -139,14 +129,6 @@ const BAGUA_DISPLAY_ZH_LABELS: Record<BaguaCode, string> = {
   KAN: "\u574e",
   GEN: "\u826e",
   KUN: "\u5764"
-};
-
-const WUXING_DISPLAY_ZH_LABELS: Record<WuXingCode, string> = {
-  WOOD: "\u6728",
-  FIRE: "\u706b",
-  EARTH: "\u571f",
-  METAL: "\u91d1",
-  WATER: "\u6c34"
 };
 
 function renderLocalizedEnumLabel<T extends string>(
@@ -462,8 +444,6 @@ export default function App(): JSX.Element {
   const ui = (key: TranslationKey): string => t(state.language, key);
   const renderBaguaLabel = (code: BaguaCode): string =>
     renderLocalizedEnumLabel(state.language, code, BAGUA_DISPLAY_ZH_LABELS);
-  const renderWuxingLabel = (code: WuXingCode): string =>
-    renderLocalizedEnumLabel(state.language, code, WUXING_DISPLAY_ZH_LABELS);
 
   const renderShapeFlagGroup = (
     titleKey: TranslationKey,
@@ -548,23 +528,6 @@ export default function App(): JSX.Element {
                     {BAGUA_OPTIONS.map((item) => (
                       <option key={item} value={item}>
                         {renderBaguaLabel(item)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  {ui("app.shape.incomingShaElement")}
-                  <select
-                    value={state.inputs.manual_categories.incoming_sha_element}
-                    onChange={(event) => {
-                      const next = event.currentTarget.value as ManualCategories["incoming_sha_element"];
-                      dispatch({ type: "set_manual_category", key: "incoming_sha_element", value: next });
-                    }}
-                  >
-                    {WUXING_OPTIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {renderWuxingLabel(item)}
                       </option>
                     ))}
                   </select>
@@ -1344,24 +1307,7 @@ export default function App(): JSX.Element {
 
                   <article className="sub-panel">
                     <h4>{ui("app.shape.elementStrength")}</h4>
-                    <div className="form-grid three-col compact-grid">
-                      <label>
-                        {ui("app.shape.incomingShaElement")}
-                        <select
-                          value={state.inputs.manual_categories.incoming_sha_element}
-                          onChange={(event) => {
-                            const next = event.currentTarget.value as ManualCategories["incoming_sha_element"];
-                            dispatch({ type: "set_manual_category", key: "incoming_sha_element", value: next });
-                          }}
-                        >
-                          {WUXING_OPTIONS.map((item) => (
-                            <option key={item} value={item}>
-                              {renderWuxingLabel(item)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
+                    <div className="form-grid two-col compact-grid">
                       <label>
                         {ui("app.shape.selfStrength")}
                         <select

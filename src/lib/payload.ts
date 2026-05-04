@@ -2,7 +2,7 @@
 // Wire field names must match backend_api_contract.md — when renaming UI fields,
 // always check whether the API contract uses a different name.
 // See: ../fengshui/docs/backend_api_contract.md
-import { BAGUA_OPTIONS, DIRECTION24_OPTIONS, WUXING_OPTIONS } from "../constants";
+import { BAGUA_OPTIONS, DIRECTION24_OPTIONS } from "../constants";
 import type {
   BaguaCode,
   BazhaiMissingField,
@@ -14,8 +14,7 @@ import type {
   HouseholdBazhaiRequest,
   InputDraftState,
   JingzhaiFullRequest,
-  RuleEvaluateRequest,
-  WuXingCode
+  RuleEvaluateRequest
 } from "../types/fengshui";
 import { calculateBaziDate, deriveMonthGanzhiCode } from "./bazi";
 
@@ -265,7 +264,6 @@ export function createEvaluationRequest(
       flags: { ...derived.flags },
       measurements: { ...derived.measurements },
       categories: {
-        incoming_sha_element: inputs.manual_categories.incoming_sha_element,
         self_strength: inputs.manual_categories.self_strength,
         incoming_strength: inputs.manual_categories.incoming_strength
       },

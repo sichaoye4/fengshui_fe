@@ -1258,6 +1258,143 @@ textarea {
 }
 
 /* Temporal cleanup: compact star and five-qi palace grids */
+.mountain-compass {
+  display: grid;
+  gap: 10px;
+}
+
+.mountain-compass-title {
+  color: #17242d;
+  font-family: var(--font-heading);
+  font-size: 1.02rem;
+  font-weight: 700;
+}
+
+.mountain-compass-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid rgba(81, 99, 111, 0.46);
+  border-radius: 8px;
+  background: rgba(251, 252, 249, 0.72);
+}
+
+.mountain-sector {
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  min-width: 0;
+  border-right: 1px solid rgba(81, 99, 111, 0.34);
+  border-bottom: 1px solid rgba(81, 99, 111, 0.34);
+}
+
+.mountain-sector:nth-child(3n) {
+  border-right: 0;
+}
+
+.mountain-sector:nth-last-child(-n + 3) {
+  border-bottom: 0;
+}
+
+.mountain-sector-vertical {
+  flex-direction: column;
+}
+
+.mountain-sector-center {
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-500);
+  font-size: 1rem;
+}
+
+.mountain-cell {
+  position: relative;
+  display: grid;
+  flex: 1 1 0;
+  min-width: 0;
+  place-items: center;
+  padding: 5px 3px;
+  border-right: 1px solid rgba(81, 99, 111, 0.2);
+}
+
+.mountain-sector-vertical .mountain-cell {
+  border-right: 0;
+  border-bottom: 1px solid rgba(81, 99, 111, 0.2);
+}
+
+.mountain-cell:last-child {
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.mountain-cell.has-marker {
+  background: rgba(123, 49, 45, 0.08);
+}
+
+.mountain-label {
+  color: var(--ink-900);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.mountain-code {
+  color: var(--ink-500);
+  font-size: 0.58rem;
+  line-height: 1;
+}
+
+.mountain-marker-stack {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+  min-height: 14px;
+}
+
+.mountain-marker {
+  max-width: 100%;
+  border-radius: 999px;
+  padding: 1px 5px;
+  color: #fff;
+  font-size: 0.56rem;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.mountain-marker.tone-bad {
+  background: #9d3a3a;
+}
+
+.mountain-marker.tone-warning {
+  background: #a06a2e;
+}
+
+.mountain-marker.tone-good {
+  background: #4f755d;
+}
+
+.mountain-marker.tone-info {
+  background: #4f5f73;
+}
+
+.mountain-compass-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  color: var(--ink-500);
+  font-size: 0.76rem;
+}
+
+.mountain-compass-legend span {
+  border: 1px solid rgba(98, 118, 130, 0.3);
+  border-radius: 999px;
+  padding: 1px 7px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
 .flying-star-grid {
   display: grid;
   grid-template-columns: 1fr;

@@ -10,6 +10,11 @@ import type {
 import { CompactDetailGrid, type CompactDetailItem } from "./CompactDetailGrid";
 import { FlyingStarGrid } from "./FlyingStarGrid";
 import { SectionTabs, type SectionTabItem } from "./SectionTabs";
+import {
+  normalizeMountain,
+  TwentyFourMountainCompass,
+  type MountainMarker
+} from "./TwentyFourMountainCompass";
 
 interface Props {
   language: Language;
@@ -51,6 +56,55 @@ function renderValue(value: string | number | null | undefined): string {
 function flightDirectionText(language: Language, flightDirection: string): string {
   if (language === "en") return flightDirection === "forward" ? "Forward" : "Backward";
   return flightDirection === "forward" ? "\u987a\u98de" : "\u9006\u98de";
+}
+
+function addMountainMarker(
+  markers: MountainMarker[],
+  mountain: string | null | undefined,
+  label: string,
+  tone?: MountainMarker["tone"]
+): void {
+  const normalized = normalizeMountain(mountain);
+  if (normalized) {
+    markers.push({ mountain: normalized, label, tone });
+  }
+}
+
+function annualCompassMarkers(language: Language, annual: TemporalAnnualResponse): MountainMarker[] {
+  const markers: MountainMarker[] = [];
+  addMountainMarker(markers, annual.tai_sui_sui_po.tai_sui, t(language, "temporal.taiSui" as TranslationKey), "warning");
+  addMountainMarker(markers, annual.tai_sui_sui_po.sui_po, t(language, "temporal.suiPo" as TranslationKey), "bad");
+  for (const mountain of annual.san_sha) {
+    addMountainMarker(markers, mountain, t(language, "temporal.sanSha" as TranslationKey), "bad");
+  }
+  for (const mountain of annual.wuji_sha) {
+    addMountainMarker(markers, mountain, t(language, "temporal.wujiSha" as TranslationKey), "bad");
+  }
+  addMountainMarker(markers, annual.taiyang.taiyang_position, t(language, "temporal.taiyang" as TranslationKey), "good");
+  addMountainMarker(
+    markers,
+    annual.nobleman.nobleman_branches.yang,
+    `${t(language, "temporal.nobleman" as TranslationKey)} ${t(language, "temporal.yang" as TranslationKey)}`,
+    "good"
+  );
+  addMountainMarker(
+    markers,
+    annual.nobleman.nobleman_branches.yin,
+    `${t(language, "temporal.nobleman" as TranslationKey)} ${t(language, "temporal.yin" as TranslationKey)}`,
+    "good"
+  );
+  addMountainMarker(markers, annual.lu_ma.lu, t(language, "temporal.lu" as TranslationKey), "info");
+  addMountainMarker(markers, annual.lu_ma.ma, t(language, "temporal.ma" as TranslationKey), "info");
+  return markers;
+}
+
+function monthlyCompassMarkers(language: Language, monthly: TemporalMonthlyResponse): MountainMarker[] {
+  const markers: MountainMarker[] = [];
+  addMountainMarker(markers, monthly.anjian_sha, t(language, "temporal.anjianSha" as TranslationKey), "bad");
+  for (const mountain of monthly.wuji_sha) {
+    addMountainMarker(markers, mountain, t(language, "temporal.wujiSha" as TranslationKey), "bad");
+  }
+  return markers;
 }
 
 function EmptySection({ language }: { language: Language }): JSX.Element {
@@ -177,25 +231,43 @@ export function TemporalPanel({
 
         {activeSection === "annual" && (
           annual ? (
-            <article className="result-card compact-result-card">
-              <h4>{t(language, "temporal.annualTitle" as TranslationKey)}</h4>
-              <p className="meta-text compact-note">
-                {annual.year_ganzhi} ({annual.year_stem}-{annual.year_branch})
-              </p>
-              <CompactDetailGrid items={annualItems} />
-            </article>
+            <div className="compact-section-layout">
+              <article className="result-card compact-result-card">
+                <h4>{t(language, "temporal.annualTitle" as TranslationKey)}</h4>
+                <p className="meta-text compact-note">
+                  {annual.year_ganzhi} ({annual.year_stem}-{annual.year_branch})
+                </p>
+                <CompactDetailGrid items={annualItems} />
+              </article>
+              <article className="result-card compact-result-card">
+                <TwentyFourMountainCompass
+                  language={language}
+                  title={t(language, "temporal.mountainCompass" as TranslationKey)}
+                  markers={annualCompassMarkers(language, annual)}
+                />
+              </article>
+            </div>
           ) : <EmptySection language={language} />
         )}
 
         {activeSection === "monthly" && (
           monthly ? (
-            <article className="result-card compact-result-card">
-              <h4>{t(language, "temporal.monthlyTitle" as TranslationKey)}</h4>
-              <p className="meta-text compact-note">
-                {monthly.month_ganzhi} ({t(language, "temporal.ruleMonth" as TranslationKey)}: {monthly.rule_month})
-              </p>
-              <CompactDetailGrid items={monthlyItems} />
-            </article>
+            <div className="compact-section-layout">
+              <article className="result-card compact-result-card">
+                <h4>{t(language, "temporal.monthlyTitle" as TranslationKey)}</h4>
+                <p className="meta-text compact-note">
+                  {monthly.month_ganzhi} ({t(language, "temporal.ruleMonth" as TranslationKey)}: {monthly.rule_month})
+                </p>
+                <CompactDetailGrid items={monthlyItems} />
+              </article>
+              <article className="result-card compact-result-card">
+                <TwentyFourMountainCompass
+                  language={language}
+                  title={t(language, "temporal.mountainCompass" as TranslationKey)}
+                  markers={monthlyCompassMarkers(language, monthly)}
+                />
+              </article>
+            </div>
           ) : <EmptySection language={language} />
         )}
 

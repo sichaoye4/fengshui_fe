@@ -107,21 +107,21 @@ function installEvaluationFetchMock() {
         flight_direction: "forward",
         directional: { C: 1, NW: 2, W: 3, NE: 4, S: 5, N: 6, SW: 7, E: 8, SE: 9 },
         matrix_south_up: [[9, 5, 7], [8, 1, 3], [4, 6, 2]],
-        bagua_star: { 乾: 2, 兑: 3, 艮: 4, 离: 5, 坎: 6, 坤: 7, 震: 8, 巽: 9, 中: 1 }
+        bagua_star: { �? 2, �? 3, �? 4, �? 5, �? 6, �? 7, �? 8, �? 9, �? 1 }
       };
     } else if (url.includes("/api/v1/liqi/house/")) {
       body = {
         sitting_bagua: "KAN",
-        sitting_bagua_zh: "坎",
+        sitting_bagua_zh: "�?,
         center_star: 1,
-        center_bagua: "坎",
-        center_star_element: "水",
+        center_bagua: "�?,
+        center_star_element: "�?,
         flying_star_grid: {
           center_star: 1,
           flight_direction: "forward",
           directional: { C: 1, NW: 2, W: 3, NE: 4, S: 5, N: 6, SW: 7, E: 8, SE: 9 },
           matrix_south_up: [[9, 5, 7], [8, 1, 3], [4, 6, 2]],
-          bagua_star: { 乾: 2, 兑: 3, 艮: 4, 离: 5, 坎: 6, 坤: 7, 震: 8, 巽: 9, 中: 1 }
+          bagua_star: { �? 2, �? 3, �? 4, �? 5, �? 6, �? 7, �? 8, �? 9, �? 1 }
         },
         qi_type_labels: { SHENG_QI: { zh: "生气", en: "Sheng Qi" } },
         five_qi_palaces: {},
@@ -216,18 +216,18 @@ function installEvaluationFetchMock() {
         evaluable: true,
         not_evaluable_reason_zh: "",
         not_evaluable_reason_en: "",
-        building_facing_bagua: "震",
+        building_facing_bagua: "�?,
         building_facing_bagua_code: "ZHEN",
-        building_facing_bagua_zh: "震",
-        door_bagua: "坤",
+        building_facing_bagua_zh: "�?,
+        door_bagua: "�?,
         door_bagua_code: "KUN",
-        door_bagua_zh: "坤",
-        door_sitting_bagua: "艮",
+        door_bagua_zh: "�?,
+        door_sitting_bagua: "�?,
         door_sitting_bagua_code: "GEN",
-        door_sitting_bagua_zh: "艮",
-        base_bagua: "震",
+        door_sitting_bagua_zh: "�?,
+        base_bagua: "�?,
         base_bagua_code: "ZHEN",
-        base_bagua_zh: "震",
+        base_bagua_zh: "�?,
         base_rule: "Door differs from building facing, so building facing is used as base.",
         total_floors: 20,
         current_floor: 19,
@@ -243,7 +243,7 @@ function installEvaluationFetchMock() {
             star_name_en: "Liu Sha",
             star_element_code: "WATER",
             is_auspicious: false,
-            label_zh: "凶",
+            label_zh: "�?,
             label_en: "inauspicious"
           },
           {
@@ -253,7 +253,7 @@ function installEvaluationFetchMock() {
             star_name_en: "Yan Nian",
             star_element_code: "METAL",
             is_auspicious: true,
-            label_zh: "吉",
+            label_zh: "�?,
             label_en: "auspicious"
           }
         ],
@@ -264,11 +264,11 @@ function installEvaluationFetchMock() {
           star_name_en: "Yan Nian",
           star_element_code: "METAL",
           is_auspicious: true,
-          label_zh: "吉",
+          label_zh: "�?,
           label_en: "auspicious"
         },
         overall_is_auspicious: true,
-        overall_label_zh: "吉",
+        overall_label_zh: "�?,
         overall_label_en: "auspicious",
         warnings: []
       };
@@ -277,7 +277,7 @@ function installEvaluationFetchMock() {
         house_analysis: {
           status: "ok",
           attributes: {
-            sitting: { bagua: "KAN", bagua_zh: "坎", element: "WATER" },
+            sitting: { bagua: "KAN", bagua_zh: "�?, element: "WATER" },
             floor: { number: 19, element: "WATER" },
             room: { index: 2, element: "EARTH" }
           },
@@ -320,7 +320,7 @@ function installEvaluationFetchMock() {
               lord_element: "WATER",
               diagnosis: null,
               affliction: { type: "pathogen_present", type_zh: "病原在运" },
-              pathogen: { bagua: "KUN", bagua_zh: "坤", element: "EARTH" }
+              pathogen: { bagua: "KUN", bagua_zh: "�?, element: "EARTH" }
             },
             {
               decade_index: 6,
@@ -330,7 +330,7 @@ function installEvaluationFetchMock() {
               lord_element: "WATER",
               diagnosis: null,
               affliction: { type: "pathogen_present", type_zh: "病原在运" },
-              pathogen: { bagua: "LI", bagua_zh: "离", element: "FIRE" }
+              pathogen: { bagua: "LI", bagua_zh: "�?, element: "FIRE" }
             }
           ],
           door_analysis: null,
@@ -338,7 +338,7 @@ function installEvaluationFetchMock() {
             total_decades_analyzed: 2,
             afflicted_decades_count: 1,
             has_affliction: true,
-            summary_zh: "静宅有一段病原在运",
+            summary_zh: "静宅有一段病原在�?,
             summary_en: "One decade has pathogen influence"
           }
         },
@@ -352,7 +352,7 @@ function installEvaluationFetchMock() {
               name: "Demo",
               birth_year: 1994,
               gender: "male",
-              minggua: { bagua: "QIAN", bagua_zh: "乾", group: "西四命" },
+              minggua: { bagua: "QIAN", bagua_zh: "�?, group: "西四�? },
               status: "ok",
               is_affected: true,
               affected_decades_count: 1,
@@ -362,14 +362,14 @@ function installEvaluationFetchMock() {
                   years_range: "11-20",
                   lord_element: "WATER",
                   pathogen_bagua: "KUN",
-                  pathogen_bagua_zh: "坤",
+                  pathogen_bagua_zh: "�?,
                   pathogen_element: "EARTH",
                   matching_categories: [{ category_zh: "绝命", label_zh: "绝命" }],
                   person_bagua: "QIAN",
-                  person_bagua_zh: "乾"
+                  person_bagua_zh: "�?
                 }
               ],
-              summary_zh: "受静宅运程影响"
+              summary_zh: "受静宅运程影�?
             }
           ]
         }
@@ -378,11 +378,11 @@ function installEvaluationFetchMock() {
       body = {
         year: 1994,
         gender: "male",
-        gender_zh: "男",
-        person_minggua: { bagua_code: "QIAN", bagua_zh: "乾", group_en: "West Four" },
+        gender_zh: "�?,
+        person_minggua: { bagua_code: "QIAN", bagua_zh: "�?, group_en: "West Four" },
         house_bagua: "KAN",
         house_bagua_code: "KAN",
-        house_bagua_zh: "坎",
+        house_bagua_zh: "�?,
         house_group: { group_en: "East Four" },
         group_match: false,
         star_relation: { relation_en: "Liu Sha", relation_zh: "六煞", tier: "medium" },
@@ -407,11 +407,11 @@ describe("App tabbed workflow", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: /中文|涓枃/ }));
+    await user.click(screen.getByRole("button", { name: /中文|涓�? }));
 
-    expect(screen.getByText("输入工作区")).toBeInTheDocument();
+    expect(screen.getByText("输入工作�?)).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /宅命理气|瀹呭懡鐞嗘皵/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /执行评估|鎵ц璇勪及/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /执行评估|鎵ц璇勪�? })).toBeInTheDocument();
   });
 
   it("keeps shared context values across all tab switches", async () => {
@@ -488,26 +488,24 @@ describe("App tabbed workflow", () => {
     await user.type(timeInput, "12:00:00");
 
     expect(flowYearPillarValue.textContent?.trim()).not.toBe("");
-    expect(flowYearPillarValue.textContent).not.toBe("鈥?");
+    expect(flowYearPillarValue.textContent).not.toBe("�?");
   });
 
-  it("renders bagua and wuxing selectors as chinese + code in zh mode", async () => {
+  it("renders bagua selectors as chinese + code in zh mode and omits incoming sha element", async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: /中文|涓枃/ }));
+    await user.click(screen.getByRole("button", { name: /中文|涓�? }));
 
     const sittingBaguaSelect = screen.getByLabelText(/鍧愬崷|坐卦/) as HTMLSelectElement;
-    const doorElementSelect = screen.getByLabelText(/闂ㄤ箣浜旇|门之五行/) as HTMLSelectElement;
 
     expect(within(sittingBaguaSelect).getByRole("option", { name: /QIAN/ })).toBeInTheDocument();
-    expect(within(doorElementSelect).getByRole("option", { name: /WOOD/ })).toBeInTheDocument();
+    expect(screen.getByLabelText("����")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Incoming Sha Element|��֮����/)).not.toBeInTheDocument();
 
     await user.selectOptions(sittingBaguaSelect, "LI");
-    await user.selectOptions(doorElementSelect, "WATER");
 
     expect(sittingBaguaSelect).toHaveValue("LI");
-    expect(doorElementSelect).toHaveValue("WATER");
   });
 
   it("uses zhai ti selection to expose either jingzhai or dongzhai result tabs", async () => {

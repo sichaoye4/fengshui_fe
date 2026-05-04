@@ -153,7 +153,6 @@ export function createDefaultInputState(): InputDraftState {
       front_pair_gap_distance_m: "5"
     },
     manual_categories: {
-      incoming_sha_element: "WOOD",
       self_strength: "normal",
       incoming_strength: "normal"
     },

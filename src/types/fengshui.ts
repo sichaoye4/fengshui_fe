@@ -97,7 +97,6 @@ export interface ManualMeasurements {
 }
 
 export interface ManualCategories {
-  incoming_sha_element: WuXingCode;
   self_strength: "weak" | "normal" | "strong";
   incoming_strength: "weak" | "normal" | "strong";
 }

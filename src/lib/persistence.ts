@@ -5,7 +5,6 @@ import {
   MAX_HOUSEHOLD_MEMBERS,
   OWNER_GENDER_OPTIONS,
   STRENGTH_OPTIONS,
-  WUXING_OPTIONS,
   createDefaultEditorState,
   createDefaultInputState
 } from "../constants";
@@ -175,7 +174,6 @@ function sanitizeManualMeasurements(raw: unknown, defaults: ManualMeasurements):
 function sanitizeManualCategories(raw: unknown, defaults: ManualCategories): ManualCategories {
   const source = asRecord(raw) ?? {};
   return {
-    incoming_sha_element: readEnum(source.incoming_sha_element, WUXING_OPTIONS, defaults.incoming_sha_element),
     self_strength: readEnum(source.self_strength, STRENGTH_OPTIONS, defaults.self_strength),
     incoming_strength: readEnum(source.incoming_strength, STRENGTH_OPTIONS, defaults.incoming_strength)
   };
