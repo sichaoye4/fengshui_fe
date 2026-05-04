@@ -63,6 +63,18 @@ describe("TemporalPanel", () => {
     expect(screen.getAllByText(/Gregorian .* Bazi Conversion/).length).toBeGreaterThan(0);
     expect(screen.queryByTestId("flying-star-grid")).not.toBeInTheDocument();
 
+    await user.click(screen.getByTestId("section-tab-annual"));
+    expect(screen.getByTestId("mountain-compass")).toBeInTheDocument();
+    expect(screen.getByTestId("mountain-cell-WU")).toHaveTextContent("Tai Sui");
+    expect(screen.getByTestId("mountain-cell-ZI")).toHaveTextContent("Sui Po");
+    expect(screen.getByTestId("mountain-cell-HAI")).toHaveTextContent("San Sha");
+    expect(screen.getByTestId("mountain-cell-CHOU")).toHaveTextContent("San Sha");
+
+    await user.click(screen.getByTestId("section-tab-monthly"));
+    expect(screen.getByTestId("mountain-cell-QIAN")).toHaveTextContent("An Jian Sha");
+    expect(screen.getByTestId("mountain-cell-SHEN")).toHaveTextContent("Wuji Sha");
+    expect(screen.getByTestId("mountain-cell-YOU")).toHaveTextContent("Wuji Sha");
+
     await user.click(screen.getByTestId("section-tab-flyingStar"));
     expect(screen.getByTestId("flying-star-grid")).toBeInTheDocument();
   });
