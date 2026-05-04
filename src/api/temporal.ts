@@ -6,11 +6,16 @@ import type {
   TemporalAnnualResponse,
   TemporalMonthlyResponse,
 } from "../types/fengshui";
+import { getStoredToken } from "./auth";
 
 async function getJson<TResponse>(path: string, baseUrl = ""): Promise<TResponse> {
+  const token = getStoredToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
   const response = await fetch(`${baseUrl}${path}`, {
     method: "GET",
-    headers: { "Content-Type": "application/json" },
+    headers,
   });
 
   if (!response.ok) {

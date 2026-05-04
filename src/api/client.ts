@@ -8,17 +8,22 @@ import type {
   RuleEvaluateRequest,
   RuleEvaluationResponse
 } from "../types/fengshui";
+import { getStoredToken } from "./auth";
 
 async function postJson<TRequest, TResponse>(
   path: string,
   payload: TRequest,
   baseUrl = ""
 ): Promise<TResponse> {
+  const token = getStoredToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json"
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
   const response = await fetch(`${baseUrl}${path}`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers,
     body: JSON.stringify(payload)
   });
 

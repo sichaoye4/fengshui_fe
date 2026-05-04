@@ -45,3 +45,5 @@ frontend/dist/
 
 *workspace
 .claude
+
+test-results/*

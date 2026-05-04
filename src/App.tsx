@@ -17,6 +17,8 @@ import { HouseLiqiWorkspace } from "./components/HouseLiqiWorkspace";
 import { HousePeriodPanel } from "./components/HousePeriodPanel";
 import { JingzhaiPanel } from "./components/JingzhaiPanel";
 import { LanguageToggle } from "./components/LanguageToggle";
+import { LoginPage } from "./components/LoginPage";
+import { saveSession, loadAuth, clearAuth, getLatestSession, getStoredToken, type UserPublic, type SessionDetailResponse } from "./api/auth";
 import { ResultsPanel } from "./components/ResultsPanel";
 import { TemporalPanel } from "./components/TemporalPanel";
 import { ToolPanel } from "./components/ToolPanel";
@@ -186,6 +188,9 @@ export default function App(): JSX.Element {
     () => createInitialAppState(loadDraft())
   );
   const [evaluationRippleKey, setEvaluationRippleKey] = useState(0);
+  const [authUser, setAuthUser] = useState<UserPublic | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState(false);
 
   const derived = useMemo(() => deriveProjectState(state.editor, state.inputs), [state.editor, state.inputs]);
   const rooms = useMemo(
@@ -287,6 +292,48 @@ export default function App(): JSX.Element {
   useEffect(() => {
     saveDraft(toProjectSnapshot(state));
   }, [state.editor, state.inputs, state.evaluation]);
+
+  useEffect(() => {
+    const stored = loadAuth();
+    if (stored) {
+      setAuthUser(stored.user);
+      setAuthToken(stored.token);
+      getLatestSession(stored.token).then((session) => {
+        if (session) {
+          const hp = session.house_profile;
+          dispatch({ type: "set_house_field", field: "name", value: (hp.name as string) ?? "" });
+          if (hp.sitting_bagua) dispatch({ type: "set_house_field", field: "sitting_bagua", value: hp.sitting_bagua as string });
+          if (hp.facing_bagua) dispatch({ type: "set_house_field", field: "facing_bagua", value: hp.facing_bagua as string });
+          if (hp.door_bagua) dispatch({ type: "set_house_field", field: "door_bagua", value: hp.door_bagua as string });
+          if (hp.sitting_direction24) dispatch({ type: "set_house_field", field: "sitting_direction24", value: hp.sitting_direction24 as string });
+          if (hp.facing_direction24) dispatch({ type: "set_house_field", field: "facing_direction24", value: hp.facing_direction24 as string });
+          if (hp.total_floors != null) dispatch({ type: "set_house_field", field: "total_floors", value: String(hp.total_floors) });
+          if (hp.current_floor != null) dispatch({ type: "set_house_field", field: "current_floor", value: String(hp.current_floor) });
+          if (hp.room_count != null) dispatch({ type: "set_house_field", field: "room_count", value: String(hp.room_count) });
+          if (session.members && session.members.length > 0) {
+            const currentMembers = state.inputs.members;
+            for (let i = currentMembers.length - 1; i >= 0; i--) {
+              dispatch({ type: "remove_member", id: currentMembers[i].id });
+            }
+            session.members.forEach((m) => {
+              dispatch({
+                type: "add_member",
+                member: {
+                  id: `member-${crypto.randomUUID()}`,
+                  name: m.name,
+                  birth_year: m.birth_year != null ? String(m.birth_year) : "",
+                  gender: (m.gender === "male" || m.gender === "female" ? m.gender : "") as "" | "male" | "female",
+                  is_primary_resident: m.is_primary_resident,
+                  relationship: m.relationship,
+                }
+              });
+            });
+          }
+        }
+      }).catch(() => {});
+    }
+    setAuthReady(true);
+  }, []);
 
   const runEvaluation = async () => {
     dispatch({ type: "set_loading", value: true });
@@ -409,6 +456,27 @@ export default function App(): JSX.Element {
             dispatch({ type: "set_temporal_loading", value: false });
           });
         }
+
+        // Save session to backend after successful evaluation
+        if (authToken) {
+          const hp = createEvaluationRequest(state.editor, state.inputs, derived);
+          saveSession({
+            house_profile: hp.house_profile as unknown as Record<string, unknown>,
+            members: state.inputs.members.map(m => ({
+              name: m.name,
+              birth_year: m.birth_year ? parseInt(m.birth_year) : null,
+              gender: m.gender || null,
+              is_primary_resident: m.is_primary_resident,
+              relationship: m.relationship,
+            })),
+            analysis_results: {
+              rules: response,
+              bazhai: bazhaiResult,
+              jingzhai: jingzhaiResult,
+              dongzhai: dongzhaiResult,
+            },
+          }, authToken).catch(() => {});
+        }
       }
     } catch (err) {
       dispatch({ type: "set_error", value: err instanceof Error ? err.message : String(err) });
@@ -468,13 +536,24 @@ export default function App(): JSX.Element {
     </article>
   );
 
+  const handleLogout = () => {
+    clearAuth();
+    setAuthUser(null);
+    setAuthToken(null);
+  };
+
   return (
+    !authReady ? (<></>) : !authUser ? (
+      <LoginPage onLogin={(user, token) => { setAuthUser(user); setAuthToken(token); }} />
+    ) : (
     <div className="app-shell">
       <header className="app-header">
         <div>
           <h1>{ui("app.header.title")}</h1>
           <p>{ui("app.header.subtitle")}</p>
         </div>
+        <span className="auth-user-badge">{authUser.username}</span>
+        <button className="logout-button" onClick={handleLogout}>Logout</button>
         <LanguageToggle
           language={state.language}
           onChange={(language) => dispatch({ type: "set_language", language })}
@@ -1387,5 +1466,6 @@ export default function App(): JSX.Element {
         </section>
       </main>
     </div>
+    )
   );
 }
