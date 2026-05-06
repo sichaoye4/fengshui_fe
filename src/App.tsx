@@ -1196,38 +1196,13 @@ export default function App(): JSX.Element {
               </section>
 
               <FloorplanEditor
-                editor={state.editor}
-                tool={state.tool}
                 language={state.language}
-                placeEntranceMode={state.placeEntranceMode}
-                onViewportChange={(viewport) => dispatch({ type: "set_editor_viewport", viewport })}
-                onAddPrimitive={(primitive) =>
+                tool={state.tool}
+                onComplete={(primitives, entrance) => {
                   dispatch({
                     type: "commit_editor",
-                    editor: {
-                      ...state.editor,
-                      primitives: [...state.editor.primitives, primitive],
-                      selectedId: primitive.id
-                    }
-                  })
-                }
-                onSelectId={(id) => dispatch({ type: "set_editor_selected_id", id })}
-                onDeleteId={(id) =>
-                  dispatch({
-                    type: "commit_editor",
-                    editor: {
-                      ...state.editor,
-                      primitives: state.editor.primitives.filter((item) => item.id !== id),
-                      selectedId: state.editor.selectedId === id ? null : state.editor.selectedId
-                    }
-                  })
-                }
-                onPlaceEntrance={(point) => {
-                  dispatch({
-                    type: "commit_editor",
-                    editor: { ...state.editor, entrance: point }
+                    editor: { ...state.editor, primitives, entrance }
                   });
-                  dispatch({ type: "set_place_entrance_mode", value: false });
                 }}
               />
 

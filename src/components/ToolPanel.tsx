@@ -15,10 +15,7 @@ interface Props {
 const TOOL_KEYS: Record<Tool, TranslationKey> = {
   select: "tool.select",
   delete: "tool.delete",
-  wall: "tool.wall",
-  door: "tool.door",
-  window: "tool.window",
-  room: "tool.room"
+  wall: "tool.wall"
 };
 
 export function ToolPanel({ tool, onToolChange, language, onUndo, onRedo, canUndo, canRedo }: Props): JSX.Element {

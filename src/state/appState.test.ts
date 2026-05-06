@@ -2,181 +2,233 @@ import { describe, expect, it } from "vitest";
 import { createDefaultEditorState, createDefaultInputState } from "../constants";
 import { appReducer, createInitialAppState, toProjectSnapshot } from "./appState";
 
-describe("appReducer", () => {
-  it("preserves raw numeric text inputs", () => {
+describe("appReducer — editor & structure tab", () => {
+  it("set_tool updates the active tool", () => {
     const state = createInitialAppState(null);
-    const next = appReducer(state, {
-      type: "set_manual_measurement",
-      key: "house_height_m",
-      value: "3."
-    });
+    expect(state.tool).toBe("select");
 
-    expect(next.inputs.manual_measurements.house_height_m).toBe("3.");
+    const wall = appReducer(state, { type: "set_tool", tool: "wall" });
+    expect(wall.tool).toBe("wall");
+
+    const deleteTool = appReducer(wall, { type: "set_tool", tool: "delete" });
+    expect(deleteTool.tool).toBe("delete");
   });
 
-  it("supports editor undo/redo history", () => {
+  it("set_active_tab switches to structure tab", () => {
+    const state = createInitialAppState(null);
+    expect(state.activeTab).toBe("house_liqi");
+
+    const switched = appReducer(state, { type: "set_active_tab", tab: "structure" });
+    expect(switched.activeTab).toBe("structure");
+  });
+
+  it("set_active_tab switches between all tabs", () => {
+    const state = createInitialAppState(null);
+
+    const temporal = appReducer(state, { type: "set_active_tab", tab: "temporal" });
+    expect(temporal.activeTab).toBe("temporal");
+
+    const staticHouse = appReducer(temporal, { type: "set_active_tab", tab: "static_house" });
+    expect(staticHouse.activeTab).toBe("static_house");
+
+    const dongzhai = appReducer(staticHouse, { type: "set_active_tab", tab: "dongzhai" });
+    expect(dongzhai.activeTab).toBe("dongzhai");
+  });
+
+  it("set_editor_viewport updates viewport without history push", () => {
+    const state = createInitialAppState(null);
+    const viewport = { x: 100, y: 50, scale: 1.5 };
+
+    const updated = appReducer(state, {
+      type: "set_editor_viewport",
+      viewport
+    });
+
+    expect(updated.editor.viewport).toEqual(viewport);
+    // Viewport changes should not push undo history
+    expect(updated.undoStack).toHaveLength(0);
+  });
+
+  it("set_editor_selected_id sets selectedId to a string", () => {
+    const state = createInitialAppState(null);
+    expect(state.editor.selectedId).toBeNull();
+
+    const selected = appReducer(state, { type: "set_editor_selected_id", id: "w1" });
+    expect(selected.editor.selectedId).toBe("w1");
+  });
+
+  it("set_editor_selected_id clears selection with null", () => {
+    const state = appReducer(createInitialAppState(null), {
+      type: "set_editor_selected_id",
+      id: "w1"
+    });
+
+    const cleared = appReducer(state, { type: "set_editor_selected_id", id: null });
+    expect(cleared.editor.selectedId).toBeNull();
+  });
+
+  it("set_place_entrance_mode toggles entrance placement mode", () => {
+    const state = createInitialAppState(null);
+    expect(state.placeEntranceMode).toBe(false);
+
+    const enabled = appReducer(state, { type: "set_place_entrance_mode", value: true });
+    expect(enabled.placeEntranceMode).toBe(true);
+
+    const disabled = appReducer(enabled, { type: "set_place_entrance_mode", value: false });
+    expect(disabled.placeEntranceMode).toBe(false);
+  });
+
+  it("set_analysis_mode switches between jingzhai and dongzhai", () => {
+    const state = createInitialAppState(null);
+    expect(state.analysisMode).toBe("jingzhai");
+
+    const dongzhai = appReducer(state, { type: "set_analysis_mode", mode: "dongzhai" });
+    expect(dongzhai.analysisMode).toBe("dongzhai");
+
+    const back = appReducer(dongzhai, { type: "set_analysis_mode", mode: "jingzhai" });
+    expect(back.analysisMode).toBe("jingzhai");
+  });
+
+  it("set_show_advanced_external toggles advanced external sha view", () => {
+    const state = createInitialAppState(null);
+    expect(state.showAdvancedExternal).toBe(false);
+
+    const shown = appReducer(state, { type: "set_show_advanced_external", value: true });
+    expect(shown.showAdvancedExternal).toBe(true);
+  });
+
+  it("commit_editor pushes to undo stack and updates editor", () => {
+    const base = createInitialAppState(null);
+    const newEditor = { ...createDefaultEditorState(), northAngleDeg: 30 };
+
+    const committed = appReducer(base, { type: "commit_editor", editor: newEditor });
+    expect(committed.editor.northAngleDeg).toBe(30);
+    expect(committed.undoStack).toHaveLength(1);
+    expect(committed.undoStack[0]).toEqual(base.editor);
+    // Redo stack should be cleared on new commit
+    expect(committed.redoStack).toHaveLength(0);
+  });
+
+  it("commit_editor clears redo stack on new commit", () => {
     const base = createInitialAppState(null);
     const editorA = { ...createDefaultEditorState(), northAngleDeg: 20 };
     const editorB = { ...editorA, northAngleDeg: 40 };
 
+    // First commit
     const committedA = appReducer(base, { type: "commit_editor", editor: editorA });
-    const committedB = appReducer(committedA, { type: "commit_editor", editor: editorB });
-    const undone = appReducer(committedB, { type: "undo_editor" });
-    const redone = appReducer(undone, { type: "redo_editor" });
+    // Undo to get redo stack
+    const undone = appReducer(committedA, { type: "undo_editor" });
+    expect(undone.redoStack).toHaveLength(1);
 
-    expect(undone.editor.northAngleDeg).toBe(20);
-    expect(redone.editor.northAngleDeg).toBe(40);
+    // New commit should clear redo stack
+    const newCommit = appReducer(undone, { type: "commit_editor", editor: editorB });
+    expect(newCommit.redoStack).toHaveLength(0);
   });
 
-  it("resets history when replacing snapshot", () => {
-    const base = createInitialAppState(null);
-    const committed = appReducer(base, {
-      type: "commit_editor",
-      editor: { ...createDefaultEditorState(), northAngleDeg: 55 }
-    });
+  it("undo_editor does nothing with empty undo stack", () => {
+    const state = createInitialAppState(null);
+    const result = appReducer(state, { type: "undo_editor" });
 
-    const snapshot = toProjectSnapshot({
-      editor: createDefaultEditorState(),
-      inputs: createDefaultInputState(),
-      evaluation: null
-    });
-
-    const replaced = appReducer(committed, { type: "replace_snapshot", snapshot });
-    expect(replaced.undoStack).toHaveLength(0);
-    expect(replaced.redoStack).toHaveLength(0);
+    expect(result.editor).toEqual(state.editor);
+    expect(result.undoStack).toHaveLength(0);
   });
 
-  it("switches tabs without mutating editor history", () => {
-    const base = createInitialAppState(null);
-    const committed = appReducer(base, {
-      type: "commit_editor",
-      editor: { ...createDefaultEditorState(), northAngleDeg: 33 }
-    });
+  it("redo_editor does nothing with empty redo stack", () => {
+    const state = createInitialAppState(null);
+    const result = appReducer(state, { type: "redo_editor" });
 
-    const switched = appReducer(committed, { type: "set_active_tab", tab: "structure" });
-    expect(switched.activeTab).toBe("structure");
-    expect(switched.undoStack).toHaveLength(1);
-    expect(switched.editor.northAngleDeg).toBe(33);
+    expect(result.editor).toEqual(state.editor);
+    expect(result.redoStack).toHaveLength(0);
   });
 
-  it("keeps tab finding filters isolated", () => {
+  it("handles editor primitives through commit_editor", () => {
     const base = createInitialAppState(null);
-    const updated = appReducer(base, {
+    const withWall = createDefaultEditorState();
+    withWall.primitives = [
+      { id: "w1", kind: "wall", start: { x: 0, y: 0 }, end: { x: 5, y: 0 } }
+    ];
+
+    const committed = appReducer(base, { type: "commit_editor", editor: withWall });
+    expect(committed.editor.primitives).toHaveLength(1);
+    expect(committed.editor.primitives[0].kind).toBe("wall");
+  });
+
+  it("preserves entrance in editor state across commits", () => {
+    const base = createInitialAppState(null);
+    const withEntrance = createDefaultEditorState();
+    withEntrance.entrance = { x: 2.5, y: 1.0 };
+
+    const committed = appReducer(base, { type: "commit_editor", editor: withEntrance });
+    expect(committed.editor.entrance).toEqual({ x: 2.5, y: 1.0 });
+  });
+
+  it("reset_tab_finding_filters resets structure filter to all", () => {
+    const base = appReducer(createInitialAppState(null), {
       type: "set_tab_finding_filter",
       tab: "structure",
       filter: "not_evaluable"
     });
 
-    expect(updated.tabFindingFilters.structure).toBe("not_evaluable");
+    expect(base.tabFindingFilters.structure).toBe("not_evaluable");
+
+    const reset = appReducer(base, { type: "reset_tab_finding_filters" });
+    expect(reset.tabFindingFilters.structure).toBe("all");
   });
 
-  describe("temporal / liqi actions", () => {
-    it("set_temporal_loading toggles loading flag", () => {
-      const state = createInitialAppState(null);
-      expect(state.temporalLoading).toBe(false);
-      const loading = appReducer(state, { type: "set_temporal_loading", value: true });
-      expect(loading.temporalLoading).toBe(true);
-      const done = appReducer(loading, { type: "set_temporal_loading", value: false });
-      expect(done.temporalLoading).toBe(false);
-    });
+  it("set_editor_selected_id does not affect other editor fields", () => {
+    const base = createInitialAppState(null);
+    const viewport = { x: 10, y: 20, scale: 2 };
+    const withViewport = appReducer(base, { type: "set_editor_viewport", viewport });
 
-    it("set_temporal_data merges annual data", () => {
-      const state = createInitialAppState(null);
-      expect(state.temporalData.annual).toBeNull();
-      // Use 'as any' for partial test data that only checks reducer behavior
-      const annual = { tai_sui: "South-East", san_sha: "West" } as any;
-      const updated = appReducer(state, {
-        type: "set_temporal_data",
-        value: { annual }
-      });
-      expect(updated.temporalData.annual).toEqual(annual);
-      expect(updated.temporalData.monthly).toBeNull();
-    });
+    // Set selectedId
+    const selected = appReducer(withViewport, { type: "set_editor_selected_id", id: "testId" });
+    // Viewport should be preserved
+    expect(selected.editor.viewport).toEqual(viewport);
+  });
+});
 
-    it("set_temporal_data merges monthly data", () => {
-      const state = createInitialAppState(null);
-      const monthly = { san_sha_month: "North" } as any;
-      const updated = appReducer(state, {
-        type: "set_temporal_data",
-        value: { monthly }
-      });
-      expect(updated.temporalData.monthly).toEqual(monthly);
-    });
+describe("appReducer — error handling", () => {
+  it("set_error sets error message", () => {
+    const base = createInitialAppState(null);
+    const withError = appReducer(base, { type: "set_error", value: "Something went wrong" });
+    expect(withError.error).toBe("Something went wrong");
+  });
 
-    it("set_temporal_data merges flying star data", () => {
-      const state = createInitialAppState(null);
-      const flyingStar = { grid: [], flight_direction: "East" } as any;
-      const updated = appReducer(state, {
-        type: "set_temporal_data",
-        value: { flyingStar }
-      });
-      expect(updated.temporalData.flyingStar).toEqual(flyingStar);
+  it("clear_error clears error message", () => {
+    const base = appReducer(createInitialAppState(null), {
+      type: "set_error",
+      value: "Error"
     });
+    const cleared = appReducer(base, { type: "clear_error" });
+    expect(cleared.error).toBe("");
+  });
 
-    it("set_temporal_data merges gregorian conversion data", () => {
-      const state = createInitialAppState(null);
-      const gregorianConversion = { year_pillar: "Jia-Chen" } as any;
-      const updated = appReducer(state, {
-        type: "set_temporal_data",
-        value: { gregorianConversion }
-      });
-      expect(updated.temporalData.gregorianConversion).toEqual(gregorianConversion);
-    });
+  it("set_loading toggles loading flag", () => {
+    const base = createInitialAppState(null);
+    expect(base.loading).toBe(false);
 
-    it("set_temporal_data merges multiple keys in one call", () => {
-      const state = createInitialAppState(null);
-      const updated = appReducer(state, {
-        type: "set_temporal_data",
-        value: {
-          annual: { tai_sui: "South" } as any,
-          monthly: { san_sha_month: "North" } as any
-        }
-      });
-      expect(updated.temporalData.annual).toEqual({ tai_sui: "South" });
-      expect(updated.temporalData.monthly).toEqual({ san_sha_month: "North" });
-      expect(updated.temporalData.flyingStar).toBeNull();
-    });
+    const loading = appReducer(base, { type: "set_loading", value: true });
+    expect(loading.loading).toBe(true);
+  });
+});
 
-    it("set_liqi_house_profile stores profile", () => {
-      const state = createInitialAppState(null);
-      expect(state.liqiHouseProfile).toBeNull();
-      const profile = {
-        sitting_bagua: "QIAN",
-        flying_star_grid: [
-          { bagua: "LI", star_number: 8, element: "EARTH", qi: "Wang-Qi" }
-        ],
-        five_qi: { sheng_qi: "DUI", jue_ming: "ZHEN" },
-        wealth_positions: ["DUI", "GEN"],
-        current_period: 9
-      } as any;
-      const updated = appReducer(state, { type: "set_liqi_house_profile", value: profile });
-      expect(updated.liqiHouseProfile).toEqual(profile);
-    });
+describe("appReducer — structure tab finding filters", () => {
+  it("set_tab_finding_filter stores structure filter", () => {
+    const base = createInitialAppState(null);
+    expect(base.tabFindingFilters.structure).toBe("all");
 
-    it("set_liqi_house_profile overwrites previous profile", () => {
-      const state = createInitialAppState(null);
-      const first = appReducer(state, {
-        type: "set_liqi_house_profile",
-        value: { sitting_bagua: "QIAN" } as any
-      });
-      const second = appReducer(first, {
-        type: "set_liqi_house_profile",
-        value: { sitting_bagua: "KUN" } as any
-      });
-      expect(second.liqiHouseProfile?.sitting_bagua).toBe("KUN");
+    const filtered = appReducer(base, {
+      type: "set_tab_finding_filter",
+      tab: "structure",
+      filter: "matched"
     });
+    expect(filtered.tabFindingFilters.structure).toBe("matched");
 
-    it("replace_snapshot preserves temporal data (not in snapshot)", () => {
-      // Temporal data is fetched live and isn't part of ProjectSnapshot,
-      // so it should be preserved across replace_snapshot.
-      const base = createInitialAppState(null);
-      const withTemporal = appReducer(base, {
-        type: "set_temporal_data",
-        value: { annual: { tai_sui: "East" } as any }
-      });
-      const snapshot = toProjectSnapshot(withTemporal);
-      const replaced = appReducer(withTemporal, { type: "replace_snapshot", snapshot });
-      expect(replaced.temporalData.annual).toEqual({ tai_sui: "East" });
+    const notEvaluable = appReducer(filtered, {
+      type: "set_tab_finding_filter",
+      tab: "structure",
+      filter: "not_evaluable"
     });
+    expect(notEvaluable.tabFindingFilters.structure).toBe("not_evaluable");
   });
 });

@@ -9,7 +9,7 @@ import type {
 export const PIXELS_PER_METER = 100;
 export const DEFAULT_CANVAS_SIZE = { width: 960, height: 640 };
 
-export const TOOL_ORDER: Tool[] = ["select", "delete", "wall", "door", "window", "room"];
+export const TOOL_ORDER: Tool[] = ["select", "delete", "wall"];
 
 export const GRID_SIZE_PRESETS_M = [0.05, 0.1, 0.2, 0.5, 1];
 

@@ -9,9 +9,6 @@ const enMessages = {
   "tool.select": "Select / Pan",
   "tool.delete": "Delete",
   "tool.wall": "Wall",
-  "tool.door": "Door",
-  "tool.window": "Window",
-  "tool.room": "Room",
   "tool.undo": "Undo",
   "tool.redo": "Redo",
 
@@ -361,7 +358,15 @@ const enMessages = {
   "liqi.title": "House Liqi / Five Qi",
   "liqi.fiveQiGrid": "Five Qi Palace Grid",
   "liqi.centerBagua": "Center Bagua",
-  "liqi.element": "Element"
+  "liqi.element": "Element",
+
+  "floorplan.upload": "Upload Floor Plan",
+  "floorplan.uploading": "Analyzing...",
+  "floorplan.retry": "Retry",
+  "floorplan.complete": "Complete",
+  "floorplan.markEntrance": "Mark as Entrance",
+  "floorplan.hintEdit": "Click to draw walls | Click wall + Delete to remove",
+  "floorplan.uploadError": "Failed to analyze image"
 } as const;
 
 export type TranslationKey = keyof typeof enMessages;
@@ -375,9 +380,6 @@ const zhMessages: Record<string, string> = {
   "tool.select": "选择 / 平移",
   "tool.delete": "删除",
   "tool.wall": "墙体",
-  "tool.door": "门",
-  "tool.window": "窗",
-  "tool.room": "房间",
   "tool.undo": "撤销",
   "tool.redo": "重做",
 
@@ -733,7 +735,15 @@ const zhUnicodeOverrides: Partial<Record<TranslationKey, string>> = {
   "dongzhai.floorSequence": "\u5c55\u5f00\u9010\u5c42\u5e8f\u5217",
   "dongzhai.totalFloors": "\u603b\u697c\u5c42",
   "dongzhai.floor": "\u697c\u5c42",
-  "dongzhai.result": "\u7ed3\u679c"
+  "dongzhai.result": "\u7ed3\u679c",
+
+  "floorplan.upload": "\u4e0a\u4f20\u6237\u578b\u56fe",
+  "floorplan.uploading": "\u5206\u6790\u4e2d...",
+  "floorplan.retry": "\u91cd\u8bd5",
+  "floorplan.complete": "\u5b8c\u6210\u7f16\u8f91",
+  "floorplan.markEntrance": "\u6807\u8bb0\u4e3a\u5927\u95e8",
+  "floorplan.hintEdit": "\u70b9\u51fb\u753b\u5899 | \u9009\u4e2d\u5899\u4f53\u540e\u6309 Delete \u5220\u9664",
+  "floorplan.uploadError": "\u56fe\u7247\u5206\u6790\u5931\u8d25"
 };
 
 export const messages: Messages = {

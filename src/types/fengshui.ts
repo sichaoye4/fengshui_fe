@@ -1,6 +1,15 @@
 export type Language = "en" | "zh";
 
-export type Tool = "select" | "delete" | "wall" | "door" | "window" | "room";
+export type FloorplanPhase = "upload" | "edit";
+
+export interface FloorplanAnalysis {
+  width: number;
+  height: number;
+  walls: Array<[number, number, number, number]>;
+  rooms: Array<Array<[number, number]>>;
+}
+
+export type Tool = "select" | "delete" | "wall";
 export type AnalysisTab = "house_liqi" | "temporal" | "zhai_yun" | "structure" | "static_house" | "dongzhai";
 
 export type FindingStatus = "matched" | "not_matched" | "not_evaluable";
