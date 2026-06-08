@@ -1,6 +1,6 @@
 import { TOOL_ORDER } from "../constants";
 import { t, type TranslationKey } from "../i18n/ui";
-import type { Language, Tool } from "../types/fengshui";
+import type { BaseTool, Language, Tool } from "../types/fengshui";
 
 interface Props {
   tool: Tool;
@@ -12,10 +12,12 @@ interface Props {
   canRedo: boolean;
 }
 
-const TOOL_KEYS: Record<Tool, TranslationKey> = {
+const TOOL_KEYS: Record<BaseTool, TranslationKey> = {
   select: "tool.select",
   delete: "tool.delete",
-  wall: "tool.wall"
+  wall: "tool.wall",
+  door: "tool.door",
+  window: "tool.window"
 };
 
 export function ToolPanel({ tool, onToolChange, language, onUndo, onRedo, canUndo, canRedo }: Props): JSX.Element {

@@ -17,9 +17,9 @@ describe("constants", () => {
     expect(DEFAULT_CANVAS_SIZE).toEqual({ width: 960, height: 640 });
   });
 
-  it("TOOL_ORDER contains all 3 tools in correct order", () => {
-    expect(TOOL_ORDER).toEqual(["select", "delete", "wall"]);
-    expect(TOOL_ORDER).toHaveLength(3);
+  it("TOOL_ORDER contains all base tools in correct order", () => {
+    expect(TOOL_ORDER).toEqual(["select", "delete", "wall", "door", "window"]);
+    expect(TOOL_ORDER).toHaveLength(5);
   });
 
   it("GRID_SIZE_PRESETS_M has presets from fine to coarse", () => {

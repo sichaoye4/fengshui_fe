@@ -9,7 +9,8 @@ export interface FloorplanAnalysis {
   rooms: Array<Array<[number, number]>>;
 }
 
-export type Tool = "select" | "delete" | "wall";
+export type BaseTool = "select" | "delete" | "wall" | "door" | "window";
+export type Tool = BaseTool | MarkerType;
 export type AnalysisTab = "house_liqi" | "temporal" | "zhai_yun" | "structure" | "static_house" | "dongzhai";
 
 export type FindingStatus = "matched" | "not_matched" | "not_evaluable";
@@ -71,6 +72,8 @@ export type MarkerType =
   | "stove"
   | "entry_turn";
 
+export type DoorRole = "main" | "room" | "toilet" | "kitchen";
+
 export interface ViewportState {
   x: number;
   y: number;
@@ -82,6 +85,8 @@ export interface SegmentPrimitive {
   kind: "wall" | "door" | "window";
   start: PointM;
   end: PointM;
+  role?: DoorRole;
+  roomId?: string;
 }
 
 export interface RoomPrimitive {

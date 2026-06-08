@@ -18,6 +18,7 @@ import type {
   ProjectSnapshot,
   PeriodFourYunResponse,
   RoomType,
+  SegmentPrimitive,
   TabFindingFilterState,
   TemporalDataSnapshot,
   Tool,
@@ -63,6 +64,9 @@ export type AppAction =
   | { type: "set_show_bagua_overlay"; value: boolean }
   | { type: "set_room_label"; id: string; label?: string; roomType?: RoomType }
   | { type: "set_room_type"; id: string; roomType: RoomType }
+  | { type: "add_segment"; segment: SegmentPrimitive }
+  | { type: "update_segment"; id: string; segment: Partial<Omit<SegmentPrimitive, "id" | "kind">> }
+  | { type: "remove_segment"; id: string }
   | { type: "add_marker"; marker: MarkerPrimitive }
   | { type: "update_marker"; id: string; marker: Partial<Omit<MarkerPrimitive, "id" | "kind">> }
   | { type: "remove_marker"; id: string }
@@ -270,6 +274,34 @@ export function appReducer(state: AppState, action: AppAction): AppState {
             ? { ...primitive, roomType: action.roomType }
             : primitive
         )
+      });
+    case "add_segment":
+      return commitEditorState(state, {
+        ...state.editor,
+        primitives: [...state.editor.primitives, action.segment],
+        selectedId: action.segment.id
+      });
+    case "update_segment":
+      return commitEditorState(state, {
+        ...state.editor,
+        primitives: state.editor.primitives.map((primitive) =>
+          (primitive.kind === "wall" || primitive.kind === "door" || primitive.kind === "window") &&
+          primitive.id === action.id
+            ? { ...primitive, ...action.segment }
+            : primitive
+        )
+      });
+    case "remove_segment":
+      return commitEditorState(state, {
+        ...state.editor,
+        primitives: state.editor.primitives.filter(
+          (primitive) =>
+            !(
+              (primitive.kind === "wall" || primitive.kind === "door" || primitive.kind === "window") &&
+              primitive.id === action.id
+            )
+        ),
+        selectedId: state.editor.selectedId === action.id ? null : state.editor.selectedId
       });
     case "add_marker":
       return commitEditorState(state, {

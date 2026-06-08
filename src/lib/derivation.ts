@@ -1,6 +1,14 @@
 import type { DerivedState, EditorState, InputDraftState, RoomPrimitive, SegmentPrimitive } from "../types/fengshui";
 import { polygonToPalaces, type BaguaPalace } from "./baguaGeometry";
-import { countDoorOpposedPairs, midpoint, pointInCenterZone, primitiveBounds, roomAreaM2, segmentLengthM } from "./geometry";
+import {
+  countDoorOpposedPairs,
+  hasOpposedDoorRoles,
+  midpoint,
+  pointInCenterZone,
+  primitiveBounds,
+  roomAreaM2,
+  segmentLengthM
+} from "./geometry";
 
 function round(value: number, digits = 3): number {
   return Number(value.toFixed(digits));
@@ -134,6 +142,12 @@ export function deriveProjectState(editor: EditorState, inputs: InputDraftState)
   const toiletInQian = inputs.manual_flags.toilet_in_qian || hasRoomTypeInPalace(editor, rooms, "toilet", "QIAN");
   const roomDoorOpposedPairs = countDoorOpposedPairs(doors);
   const windowToSpaceRatio = deriveWindowRatio(walls, windows);
+  const roomToiletDoorOpposed = hasOpposedDoorRoles(doors, "room", "toilet");
+  const roomKitchenDoorOpposed = hasOpposedDoorRoles(doors, "room", "kitchen");
+  const toiletKitchenDoorOpposed = hasOpposedDoorRoles(doors, "toilet", "kitchen");
+  const mainRoomDoorOpposed = hasOpposedDoorRoles(doors, "main", "room");
+  const mainKitchenDoorOpposed = hasOpposedDoorRoles(doors, "main", "kitchen");
+  const mainToiletDoorOpposed = hasOpposedDoorRoles(doors, "main", "toilet");
 
   const internalFlags: Record<string, boolean> = {
     stair_in_center: stairInCenter,
@@ -144,12 +158,12 @@ export function deriveProjectState(editor: EditorState, inputs: InputDraftState)
     rear_window_open_on_shengqi: inputs.manual_flags.rear_window_open_on_shengqi,
     stair_corner_window_open: inputs.manual_flags.stair_corner_window_open,
     center_wall_block: centerWallBlock,
-    room_toilet_door_opposed: inputs.manual_flags.room_toilet_door_opposed,
-    room_kitchen_door_opposed: inputs.manual_flags.room_kitchen_door_opposed,
-    toilet_kitchen_door_opposed: inputs.manual_flags.toilet_kitchen_door_opposed,
-    main_door_room_door_opposed: inputs.manual_flags.main_door_room_door_opposed,
-    main_door_kitchen_door_opposed: inputs.manual_flags.main_door_kitchen_door_opposed,
-    main_door_toilet_door_opposed: inputs.manual_flags.main_door_toilet_door_opposed
+    room_toilet_door_opposed: inputs.manual_flags.room_toilet_door_opposed || roomToiletDoorOpposed,
+    room_kitchen_door_opposed: inputs.manual_flags.room_kitchen_door_opposed || roomKitchenDoorOpposed,
+    toilet_kitchen_door_opposed: inputs.manual_flags.toilet_kitchen_door_opposed || toiletKitchenDoorOpposed,
+    main_door_room_door_opposed: inputs.manual_flags.main_door_room_door_opposed || mainRoomDoorOpposed,
+    main_door_kitchen_door_opposed: inputs.manual_flags.main_door_kitchen_door_opposed || mainKitchenDoorOpposed,
+    main_door_toilet_door_opposed: inputs.manual_flags.main_door_toilet_door_opposed || mainToiletDoorOpposed
   };
 
   const rootFlags: Record<string, boolean> = {

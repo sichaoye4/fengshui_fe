@@ -323,6 +323,45 @@ textarea {
   gap: 8px;
 }
 
+.marker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+}
+
+.marker-grid button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 42px;
+}
+
+.marker-grid button.active {
+  border-color: var(--cinnabar-deep);
+  background: linear-gradient(120deg, var(--cinnabar), var(--cinnabar-deep));
+  color: #fff;
+}
+
+.marker-button-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  border-radius: 8px;
+  background: rgba(40, 92, 87, 0.12);
+  color: var(--jade);
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.marker-grid button.active .marker-button-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
 .form-grid {
   display: grid;
   gap: 12px;

@@ -3,14 +3,25 @@ import type {
   EditorState,
   ExternalShaFlags,
   InputDraftState,
+  MarkerType,
   RoomType,
-  Tool
+  BaseTool
 } from "./types/fengshui";
 
 export const PIXELS_PER_METER = 100;
 export const DEFAULT_CANVAS_SIZE = { width: 960, height: 640 };
 
-export const TOOL_ORDER: Tool[] = ["select", "delete", "wall"];
+export const TOOL_ORDER: BaseTool[] = ["select", "delete", "wall", "door", "window"];
+export const MARKER_TYPES: MarkerType[] = [
+  "main_door",
+  "room_door",
+  "toilet_door",
+  "kitchen_door",
+  "toilet_fixture",
+  "stair",
+  "stove",
+  "entry_turn"
+];
 export const ROOM_TYPE_OPTIONS: RoomType[] = [
   "unknown",
   "living",

@@ -1,5 +1,5 @@
 import { PIXELS_PER_METER } from "../constants";
-import type { PointM, Primitive, RoomPrimitive, SegmentPrimitive } from "../types/fengshui";
+import type { DoorRole, PointM, Primitive, RoomPrimitive, SegmentPrimitive } from "../types/fengshui";
 
 export function metersToPixels(valueM: number): number {
   return valueM * PIXELS_PER_METER;
@@ -125,39 +125,61 @@ export function midpoint(segment: SegmentPrimitive): PointM {
   };
 }
 
-export function countDoorOpposedPairs(doors: SegmentPrimitive[]): number {
+export function isOpposed(a: SegmentPrimitive, b: SegmentPrimitive): boolean {
+  if (isHorizontal(a) && isHorizontal(b)) {
+    const yGap = Math.abs(a.start.y - b.start.y);
+    const aMin = Math.min(a.start.x, a.end.x);
+    const aMax = Math.max(a.start.x, a.end.x);
+    const bMin = Math.min(b.start.x, b.end.x);
+    const bMax = Math.max(b.start.x, b.end.x);
+    const overlap = Math.min(aMax, bMax) - Math.max(aMin, bMin);
+    return yGap > 0 && yGap <= 3 && overlap > 0.2;
+  }
+
+  if (isVertical(a) && isVertical(b)) {
+    const xGap = Math.abs(a.start.x - b.start.x);
+    const aMin = Math.min(a.start.y, a.end.y);
+    const aMax = Math.max(a.start.y, a.end.y);
+    const bMin = Math.min(b.start.y, b.end.y);
+    const bMax = Math.max(b.start.y, b.end.y);
+    const overlap = Math.min(aMax, bMax) - Math.max(aMin, bMin);
+    return xGap > 0 && xGap <= 3 && overlap > 0.2;
+  }
+
+  return false;
+}
+
+export function countOpposedDoorPairs(doors: SegmentPrimitive[]): number {
   let count = 0;
 
   for (let i = 0; i < doors.length; i += 1) {
     for (let j = i + 1; j < doors.length; j += 1) {
-      const a = doors[i];
-      const b = doors[j];
-
-      if (isHorizontal(a) && isHorizontal(b)) {
-        const yGap = Math.abs(a.start.y - b.start.y);
-        const aMin = Math.min(a.start.x, a.end.x);
-        const aMax = Math.max(a.start.x, a.end.x);
-        const bMin = Math.min(b.start.x, b.end.x);
-        const bMax = Math.max(b.start.x, b.end.x);
-        const overlap = Math.min(aMax, bMax) - Math.max(aMin, bMin);
-        if (yGap > 0 && yGap <= 3 && overlap > 0.2) {
-          count += 1;
-        }
-      }
-
-      if (isVertical(a) && isVertical(b)) {
-        const xGap = Math.abs(a.start.x - b.start.x);
-        const aMin = Math.min(a.start.y, a.end.y);
-        const aMax = Math.max(a.start.y, a.end.y);
-        const bMin = Math.min(b.start.y, b.end.y);
-        const bMax = Math.max(b.start.y, b.end.y);
-        const overlap = Math.min(aMax, bMax) - Math.max(aMin, bMin);
-        if (xGap > 0 && xGap <= 3 && overlap > 0.2) {
-          count += 1;
-        }
+      if (isOpposed(doors[i], doors[j])) {
+        count += 1;
       }
     }
   }
 
   return count;
+}
+
+export function countDoorOpposedPairs(doors: SegmentPrimitive[]): number {
+  return countOpposedDoorPairs(doors);
+}
+
+export function hasOpposedDoorRoles(doors: SegmentPrimitive[], roleA: DoorRole, roleB: DoorRole): boolean {
+  for (let i = 0; i < doors.length; i += 1) {
+    for (let j = i + 1; j < doors.length; j += 1) {
+      const a = doors[i];
+      const b = doors[j];
+      const rolesMatch =
+        (a.role === roleA && b.role === roleB) ||
+        (a.role === roleB && b.role === roleA);
+      if (rolesMatch && isOpposed(a, b)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }

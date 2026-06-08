@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Image, Layer, Group, Line, Stage, Text } from "react-konva";
-import { DEFAULT_CANVAS_SIZE, PIXELS_PER_METER } from "../constants";
+import { Circle, Image, Layer, Group, Line, RegularPolygon, Stage, Text } from "react-konva";
+import { DEFAULT_CANVAS_SIZE, MARKER_TYPES, PIXELS_PER_METER } from "../constants";
 import { t } from "../i18n/ui";
 import { getBaguaGrid, type BaguaBoundingBox } from "../lib/baguaGeometry";
 import { metersToPixels, primitiveBounds } from "../lib/geometry";
@@ -12,6 +12,8 @@ import type {
   FloorplanPhase,
   FloorplanSource,
   Language,
+  MarkerPrimitive,
+  MarkerType,
   PointM,
   Primitive,
   RoomPrimitive,
@@ -28,6 +30,10 @@ interface Props {
   selectedId?: string | null;
   onSelectPrimitive?: (id: string | null) => void;
   onViewportChange?: (viewport: ViewportState) => void;
+  onAddMarker?: (marker: MarkerPrimitive) => void;
+  onRemoveMarker?: (id: string) => void;
+  onAddSegment?: (segment: SegmentPrimitive) => void;
+  onRemoveSegment?: (id: string) => void;
   onComplete: (primitives: Primitive[], entrance: PointM | null, floorplan?: FloorplanSource) => void;
 }
 
@@ -60,6 +66,38 @@ const BAGUA_CELL_COLORS: Record<string, string> = {
   LI: "#dc2626",
   XUN: "#0d9488"
 };
+
+const MARKER_COLORS: Record<MarkerType, string> = {
+  main_door: "#b45309",
+  room_door: "#d97706",
+  toilet_door: "#0891b2",
+  kitchen_door: "#ea580c",
+  window: "#2563eb",
+  toilet_fixture: "#06b6d4",
+  stair: "#7c3aed",
+  stove: "#dc2626",
+  entry_turn: "#16a34a"
+};
+
+const MARKER_LABELS: Record<MarkerType, string> = {
+  main_door: "M",
+  room_door: "R",
+  toilet_door: "T",
+  kitchen_door: "K",
+  window: "W",
+  toilet_fixture: "WC",
+  stair: "S",
+  stove: "F",
+  entry_turn: "ET"
+};
+
+function isMarkerToolValue(tool: Tool): tool is MarkerType {
+  return (MARKER_TYPES as string[]).includes(tool);
+}
+
+function isSegmentToolValue(tool: Tool): tool is SegmentPrimitive["kind"] {
+  return tool === "wall" || tool === "door" || tool === "window";
+}
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -118,6 +156,10 @@ export function FloorplanEditor({
   selectedId = null,
   onSelectPrimitive,
   onViewportChange,
+  onAddMarker,
+  onRemoveMarker,
+  onAddSegment,
+  onRemoveSegment,
   onComplete
 }: Props): JSX.Element {
   const hasExistingFloorplan = Boolean(editor?.floorplan || editor?.primitives.length);
@@ -131,7 +173,7 @@ export function FloorplanEditor({
     imageName: editor?.floorplan?.imageName,
     contentType: editor?.floorplan?.contentType
   });
-  const [userWalls, setUserWalls] = useState<SegmentPrimitive[]>([]);
+  const [userSegments, setUserSegments] = useState<SegmentPrimitive[]>([]);
   const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
   const [entranceWallId, setEntranceWallId] = useState<string | null>(null);
   const [drawStart, setDrawStart] = useState<PointM | null>(null);
@@ -161,7 +203,13 @@ export function FloorplanEditor({
       ) ?? [],
     [editor?.primitives]
   );
+  const savedMarkers = useMemo(
+    () => editor?.primitives.filter((item): item is MarkerPrimitive => item.kind === "marker") ?? [],
+    [editor?.primitives]
+  );
   const shouldRenderSavedPrimitives = savedRooms.length > 0 || savedSegments.length > 0;
+  const isMarkerTool = isMarkerToolValue(tool);
+  const isSegmentTool = isSegmentToolValue(tool);
 
   const baguaBBox = useMemo<BaguaBoundingBox | null>(() => {
     if (imageWidth > 0 && imageHeight > 0) {
@@ -238,13 +286,14 @@ export function FloorplanEditor({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.key === "Delete" || e.key === "Backspace") && selectedWallId) {
-        setUserWalls((prev) => prev.filter((w) => w.id !== selectedWallId));
+        setUserSegments((prev) => prev.filter((segment) => segment.id !== selectedWallId));
+        onRemoveSegment?.(selectedWallId);
         setSelectedWallId(null);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedWallId]);
+  }, [onRemoveSegment, selectedWallId]);
 
   // Helper: convert pointer screen position to world-space snapped point
   const getSnappedPointerPoint = (
@@ -262,7 +311,7 @@ export function FloorplanEditor({
 
   // Entrance marker triangle (computed from the entrance wall midpoint)
   const entranceWall = entranceWallId
-    ? userWalls.find((w) => w.id === entranceWallId)
+    ? userSegments.find((w) => w.id === entranceWallId)
     : null;
   let entranceMarkerPoints: number[] | null = null;
   if (entranceWall) {
@@ -422,7 +471,7 @@ export function FloorplanEditor({
           width={DEFAULT_CANVAS_SIZE.width}
           height={DEFAULT_CANVAS_SIZE.height}
           onWheel={handleWheel}
-          draggable
+          draggable={tool === "select"}
           x={viewport.x}
           y={viewport.y}
           scaleX={viewport.scale}
@@ -454,11 +503,25 @@ export function FloorplanEditor({
               return;
             }
 
-            if (tool === "wall") {
+            if (isMarkerTool) {
+              const snapped = getSnappedPointerPoint(stage);
+              onAddMarker?.({
+                id: makeId("marker"),
+                kind: "marker",
+                markerType: tool as MarkerType,
+                x: snapped.x,
+                y: snapped.y
+              });
+              setDrawStart(null);
+              setDrawCurrent(null);
+              return;
+            }
+
+            if (isSegmentTool) {
               const snapped = getSnappedPointerPoint(stage);
 
               if (drawStart) {
-                // Second click — attempt to complete the wall
+                // Second click: attempt to complete the segment.
                 const dx = snapped.x - drawStart.x;
                 const dy = snapped.y - drawStart.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -476,20 +539,22 @@ export function FloorplanEditor({
                   else if (angleRad > Math.PI / 2 - toleranceRad) {
                     endX = drawStart.x;
                   }
-                  setUserWalls((prev) => [
-                    ...prev,
-                    {
-                      id: makeId("wall"),
-                      kind: "wall",
-                      start: drawStart,
-                      end: { x: endX, y: endY },
-                    },
-                  ]);
+                  const segment: SegmentPrimitive = {
+                    id: makeId(tool),
+                    kind: tool,
+                    start: drawStart,
+                    end: { x: endX, y: endY },
+                  };
+                  if (shouldRenderSavedPrimitives) {
+                    onAddSegment?.(segment);
+                  } else {
+                    setUserSegments((prev) => [...prev, segment]);
+                  }
                 }
                 setDrawStart(null);
                 setDrawCurrent(null);
               } else {
-                // First click — start drawing
+                // First click: start drawing.
                 setDrawStart(snapped);
                 setDrawCurrent(snapped);
               }
@@ -595,21 +660,73 @@ export function FloorplanEditor({
 
             {/* Layer 4 — CV and saved walls */}
             {shouldRenderSavedPrimitives
-              ? savedSegments.map((segment) => (
-                  <Line
-                    key={segment.id}
-                    points={[
-                      metersToPixels(segment.start.x),
-                      metersToPixels(segment.start.y),
-                      metersToPixels(segment.end.x),
-                      metersToPixels(segment.end.y)
-                    ]}
-                    stroke={segmentStroke(segment)}
-                    strokeWidth={segment.kind === "wall" ? 3 : 2.5}
-                    opacity={segment.kind === "wall" ? 0.85 : 0.75}
-                    listening={false}
-                  />
-                ))
+              ? savedSegments.map((segment) => {
+                  const mid = {
+                    x: (segment.start.x + segment.end.x) / 2,
+                    y: (segment.start.y + segment.end.y) / 2
+                  };
+                  return (
+                    <Group key={segment.id}>
+                      <Line
+                        data-testid={`segment-${segment.id}`}
+                        points={[
+                          metersToPixels(segment.start.x),
+                          metersToPixels(segment.start.y),
+                          metersToPixels(segment.end.x),
+                          metersToPixels(segment.end.y)
+                        ]}
+                        stroke={segmentStroke(segment)}
+                        strokeWidth={selectedId === segment.id ? 4 : segment.kind === "wall" ? 3 : 2.5}
+                        opacity={segment.kind === "wall" ? 0.85 : 0.8}
+                        dash={segment.kind === "window" ? [10, 5] : undefined}
+                        onClick={(event) => {
+                          event.cancelBubble = true;
+                          if (tool === "delete") {
+                            if (segment.kind === "wall" || segment.kind === "door" || segment.kind === "window") {
+                              onRemoveSegment?.(segment.id);
+                            }
+                            setDrawStart(null);
+                            setDrawCurrent(null);
+                            return;
+                          }
+                          if (tool === "select") {
+                            setSelectedWallId(segment.id);
+                            onSelectPrimitive?.(segment.id);
+                            setDrawStart(null);
+                            setDrawCurrent(null);
+                          }
+                        }}
+                        onTap={(event) => {
+                          event.cancelBubble = true;
+                          if (tool === "delete") {
+                            onRemoveSegment?.(segment.id);
+                            setDrawStart(null);
+                            setDrawCurrent(null);
+                            return;
+                          }
+                          if (tool === "select") {
+                            setSelectedWallId(segment.id);
+                            onSelectPrimitive?.(segment.id);
+                            setDrawStart(null);
+                            setDrawCurrent(null);
+                          }
+                        }}
+                      />
+                      {segment.kind === "door" && segment.role && (
+                        <Text
+                          text={segment.role.toUpperCase()}
+                          x={metersToPixels(mid.x) - 24}
+                          y={metersToPixels(mid.y) - 24}
+                          width={48}
+                          align="center"
+                          fontSize={10}
+                          fill="#78350f"
+                          listening={false}
+                        />
+                      )}
+                    </Group>
+                  );
+                })
               : (analysis?.walls ?? []).map(([x1, y1, x2, y2], idx) => (
                   <Line
                     key={`cv-${idx}`}
@@ -621,8 +738,8 @@ export function FloorplanEditor({
                   />
                 ))}
 
-            {/* Layer 5 — User walls */}
-            {!shouldRenderSavedPrimitives && userWalls.map((wall) => (
+            {/* Layer 5 - user-drawn draft segments */}
+            {!shouldRenderSavedPrimitives && userSegments.map((wall) => (
               <Line
                 key={wall.id}
                 points={[
@@ -631,12 +748,14 @@ export function FloorplanEditor({
                   metersToPixels(wall.end.x),
                   metersToPixels(wall.end.y),
                 ]}
-                stroke="#1e293b"
-                strokeWidth={selectedWallId === wall.id ? 4 : 3}
+                stroke={segmentStroke(wall)}
+                strokeWidth={selectedWallId === wall.id ? 4 : wall.kind === "wall" ? 3 : 2.5}
+                opacity={wall.kind === "wall" ? 0.85 : 0.8}
+                dash={wall.kind === "window" ? [10, 5] : undefined}
                 onClick={(e) => {
                   e.cancelBubble = true;
                   if (tool === "delete") {
-                    setUserWalls((prev) => prev.filter((w) => w.id !== wall.id));
+                    setUserSegments((prev) => prev.filter((w) => w.id !== wall.id));
                     if (selectedWallId === wall.id) setSelectedWallId(null);
                     if (entranceWallId === wall.id) setEntranceWallId(null);
                     setDrawStart(null);
@@ -650,7 +769,7 @@ export function FloorplanEditor({
                 onTap={(e) => {
                   e.cancelBubble = true;
                   if (tool === "delete") {
-                    setUserWalls((prev) => prev.filter((w) => w.id !== wall.id));
+                    setUserSegments((prev) => prev.filter((w) => w.id !== wall.id));
                     if (selectedWallId === wall.id) setSelectedWallId(null);
                     if (entranceWallId === wall.id) setEntranceWallId(null);
                     setDrawStart(null);
@@ -663,6 +782,67 @@ export function FloorplanEditor({
                 }}
               />
             ))}
+
+            {savedMarkers.map((marker) => {
+              const color = MARKER_COLORS[marker.markerType];
+              return (
+                <Group
+                  key={marker.id}
+                  data-testid={`marker-${marker.id}`}
+                  x={metersToPixels(marker.x)}
+                  y={metersToPixels(marker.y)}
+                  onClick={(event) => {
+                    event.cancelBubble = true;
+                    if (tool === "delete") {
+                      onRemoveMarker?.(marker.id);
+                      setDrawStart(null);
+                      setDrawCurrent(null);
+                      return;
+                    }
+                    if (tool === "select") {
+                      setSelectedWallId(null);
+                      onSelectPrimitive?.(marker.id);
+                      setDrawStart(null);
+                      setDrawCurrent(null);
+                    }
+                  }}
+                  onTap={(event) => {
+                    event.cancelBubble = true;
+                    if (tool === "delete") {
+                      onRemoveMarker?.(marker.id);
+                      setDrawStart(null);
+                      setDrawCurrent(null);
+                      return;
+                    }
+                    if (tool === "select") {
+                      setSelectedWallId(null);
+                      onSelectPrimitive?.(marker.id);
+                      setDrawStart(null);
+                      setDrawCurrent(null);
+                    }
+                  }}
+                >
+                  <Circle
+                    data-testid={`marker-dot-${marker.id}`}
+                    radius={12}
+                    fill="#ffffff"
+                    stroke={selectedId === marker.id ? "#0f172a" : color}
+                    strokeWidth={selectedId === marker.id ? 3 : 2}
+                  />
+                  <RegularPolygon sides={4} radius={7} fill={color} opacity={0.92} listening={false} />
+                  <Text
+                    text={MARKER_LABELS[marker.markerType]}
+                    x={-18}
+                    y={13}
+                    width={36}
+                    align="center"
+                    fontSize={9}
+                    fill="#0f172a"
+                    listening={false}
+                  />
+                </Group>
+              );
+            })}
 
             {/* Drawing preview (dashed amber line) */}
             {drawStart && drawCurrent && (
@@ -755,12 +935,12 @@ export function FloorplanEditor({
                   )
                 : [];
             if (!shouldRenderSavedPrimitives) {
-              primitives.push(...userWalls);
+              primitives.push(...savedMarkers, ...userSegments);
             }
             const entrance = shouldRenderSavedPrimitives
               ? editor?.entrance ?? null
               : userWallsToEntrance(
-                  userWalls,
+                  userSegments.filter((segment) => segment.kind === "wall"),
                   entranceWallId
                 );
             const floorplan: FloorplanSource | undefined = editor?.floorplan ??

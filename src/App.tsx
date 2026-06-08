@@ -21,6 +21,7 @@ import { LoginPage } from "./components/LoginPage";
 import { saveSession, loadAuth, clearAuth, getLatestSession, getStoredToken, type UserPublic, type SessionDetailResponse } from "./api/auth";
 import { ResultsPanel } from "./components/ResultsPanel";
 import { RoomLabelPanel } from "./components/RoomLabelPanel";
+import { ShaMarkerPalette } from "./components/ShaMarkerPalette";
 import { TemporalPanel } from "./components/TemporalPanel";
 import { ToolPanel } from "./components/ToolPanel";
 import { deriveProjectState } from "./lib/derivation";
@@ -52,6 +53,7 @@ import type {
   PeriodFourYunResponse,
   RoomPrimitive,
   RoomType,
+  SegmentPrimitive,
   TemporalAnnualResponse,
   TemporalMonthlyResponse
 } from "./types/fengshui";
@@ -203,6 +205,14 @@ export default function App(): JSX.Element {
   const selectedRoom = useMemo(
     () => rooms.find((room) => room.id === state.editor.selectedId) ?? null,
     [rooms, state.editor.selectedId]
+  );
+  const selectedDoor = useMemo(
+    () =>
+      state.editor.primitives.find(
+        (primitive): primitive is SegmentPrimitive =>
+          primitive.kind === "door" && primitive.id === state.editor.selectedId
+      ) ?? null,
+    [state.editor.primitives, state.editor.selectedId]
   );
   const baziDate = useMemo(
     () => calculateBaziDate(state.inputs.temporal.gregorian_date, state.inputs.temporal.gregorian_time),
@@ -1116,6 +1126,12 @@ export default function App(): JSX.Element {
                 canRedo={canRedo}
               />
 
+              <ShaMarkerPalette
+                tool={state.tool}
+                language={state.language}
+                onToolChange={(tool) => dispatch({ type: "set_tool", tool })}
+              />
+
               <section className="panel">
                 <h3>{ui("app.internal.editorControls")}</h3>
                 <div className="form-grid two-col compact-grid">
@@ -1201,6 +1217,10 @@ export default function App(): JSX.Element {
                 selectedId={state.editor.selectedId}
                 onSelectPrimitive={(id) => dispatch({ type: "set_editor_selected_id", id })}
                 onViewportChange={(viewport) => dispatch({ type: "set_editor_viewport", viewport })}
+                onAddMarker={(marker) => dispatch({ type: "add_marker", marker })}
+                onRemoveMarker={(id) => dispatch({ type: "remove_marker", id })}
+                onAddSegment={(segment) => dispatch({ type: "add_segment", segment })}
+                onRemoveSegment={(id) => dispatch({ type: "remove_segment", id })}
                 onComplete={(primitives, entrance, floorplan) => {
                   dispatch({
                     type: "commit_editor",
@@ -1208,6 +1228,40 @@ export default function App(): JSX.Element {
                   });
                 }}
               />
+
+              <section className="panel door-role-panel">
+                <h3>{ui("doorRole.title")}</h3>
+                {selectedDoor ? (
+                  <div className="form-grid two-col compact-grid">
+                    <label>
+                      {ui("doorRole.role")}
+                      <select
+                        value={selectedDoor.role ?? ""}
+                        onChange={(event) => {
+                          const role = event.currentTarget.value;
+                          dispatch({
+                            type: "update_segment",
+                            id: selectedDoor.id,
+                            segment: { role: role ? (role as SegmentPrimitive["role"]) : undefined }
+                          });
+                        }}
+                      >
+                        <option value="">{ui("doorRole.none")}</option>
+                        <option value="main">{ui("doorRole.main")}</option>
+                        <option value="room">{ui("doorRole.room")}</option>
+                        <option value="toilet">{ui("doorRole.toilet")}</option>
+                        <option value="kitchen">{ui("doorRole.kitchen")}</option>
+                      </select>
+                    </label>
+                    <label>
+                      ID
+                      <input value={selectedDoor.id} readOnly />
+                    </label>
+                  </div>
+                ) : (
+                  <p className="meta-text">{ui("doorRole.empty")}</p>
+                )}
+              </section>
 
               <RoomLabelPanel
                 language={state.language}
