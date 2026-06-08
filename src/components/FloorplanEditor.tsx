@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Image, Layer, Group, Line, Stage, Text } from "react-konva";
 import { DEFAULT_CANVAS_SIZE, PIXELS_PER_METER } from "../constants";
 import { t } from "../i18n/ui";
-import { metersToPixels } from "../lib/geometry";
+import { getBaguaGrid, type BaguaBoundingBox } from "../lib/baguaGeometry";
+import { metersToPixels, primitiveBounds } from "../lib/geometry";
 import { makeId } from "../lib/id";
 import { cvAnalysisToPrimitives, userWallsToEntrance } from "../lib/floorplan";
 import type {
@@ -48,6 +49,18 @@ const ROOM_TYPE_COLORS: Record<RoomType, string> = {
   balcony: "#14b8a6"
 };
 
+const BAGUA_CELL_COLORS: Record<string, string> = {
+  QIAN: "#64748b",
+  KAN: "#2563eb",
+  GEN: "#84cc16",
+  DUI: "#f59e0b",
+  CENTER: "#a855f7",
+  ZHEN: "#16a34a",
+  KUN: "#d97706",
+  LI: "#dc2626",
+  XUN: "#0d9488"
+};
+
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -86,6 +99,10 @@ function roomLabelPositionPx(room: RoomPrimitive): { x: number; y: number } {
     { x: 0, y: 0 }
   );
   return { x: metersToPixels(center.x), y: metersToPixels(center.y) };
+}
+
+function pointsPx(points: PointM[]): number[] {
+  return points.flatMap((point) => [metersToPixels(point.x), metersToPixels(point.y)]);
 }
 
 function segmentStroke(segment: SegmentPrimitive): string {
@@ -145,6 +162,23 @@ export function FloorplanEditor({
     [editor?.primitives]
   );
   const shouldRenderSavedPrimitives = savedRooms.length > 0 || savedSegments.length > 0;
+
+  const baguaBBox = useMemo<BaguaBoundingBox | null>(() => {
+    if (imageWidth > 0 && imageHeight > 0) {
+      return {
+        minX: 0,
+        minY: 0,
+        maxX: imageWidth / PIXELS_PER_METER,
+        maxY: imageHeight / PIXELS_PER_METER
+      };
+    }
+    return editor?.primitives.length ? primitiveBounds(editor.primitives) : null;
+  }, [editor?.primitives, imageHeight, imageWidth]);
+
+  const baguaCells = useMemo(
+    () => (editor?.showBaguaOverlay && baguaBBox ? getBaguaGrid(baguaBBox, editor.northAngleDeg) : []),
+    [baguaBBox, editor?.northAngleDeg, editor?.showBaguaOverlay]
+  );
 
   useEffect(() => {
     if (!editor?.floorplan && !editor?.primitives.length) {
@@ -656,6 +690,40 @@ export function FloorplanEditor({
                 closed
                 listening={false}
               />
+            )}
+
+            {baguaCells.length > 0 && (
+              <Group data-testid="bagua-overlay">
+                {baguaCells.map((cell) => {
+                  const color = BAGUA_CELL_COLORS[cell.palace];
+                  return (
+                    <Group key={cell.palace}>
+                      <Line
+                        data-testid={`bagua-cell-${cell.palace}`}
+                        points={pointsPx(cell.points)}
+                        fill={color}
+                        opacity={0.14}
+                        stroke={color}
+                        strokeWidth={2}
+                        closed
+                        listening={false}
+                      />
+                      <Text
+                        data-testid={`bagua-label-${cell.palace}`}
+                        text={cell.label}
+                        x={metersToPixels(cell.center.x) - 36}
+                        y={metersToPixels(cell.center.y) - 9}
+                        width={72}
+                        align="center"
+                        fontSize={13}
+                        fontStyle="bold"
+                        fill="#0f172a"
+                        listening={false}
+                      />
+                    </Group>
+                  );
+                })}
+              </Group>
             )}
           </Layer>
         </Stage>

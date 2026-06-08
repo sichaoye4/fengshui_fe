@@ -325,4 +325,43 @@ describe("FloorplanEditor", () => {
     expect(onSelectPrimitive).toHaveBeenCalledWith("room-1");
     expect(screen.getByText("Bath")).toBeInTheDocument();
   });
+
+  it("renders the bagua overlay only when enabled", () => {
+    const editor = {
+      gridSizeM: 0.1,
+      viewport: { x: 0, y: 0, scale: 1 },
+      northAngleDeg: 0,
+      entrance: null,
+      selectedId: null,
+      primitives: [
+        {
+          id: "room-1",
+          kind: "room" as const,
+          x: 0,
+          y: 0,
+          width: 9,
+          height: 9,
+          roomType: "living" as const
+        }
+      ]
+    };
+
+    const { rerender } = render(
+      <FloorplanEditor language="en" tool="select" editor={editor} onComplete={vi.fn()} />
+    );
+
+    expect(screen.queryByTestId("bagua-cell-KAN")).not.toBeInTheDocument();
+
+    rerender(
+      <FloorplanEditor
+        language="en"
+        tool="select"
+        editor={{ ...editor, showBaguaOverlay: true }}
+        onComplete={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("bagua-cell-KAN")).toBeInTheDocument();
+    expect(screen.getByText("Kan")).toBeInTheDocument();
+  });
 });

@@ -86,6 +86,15 @@ describe("appReducer — editor & structure tab", () => {
     expect(shown.showAdvancedExternal).toBe(true);
   });
 
+  it("set_show_bagua_overlay toggles the editor bagua overlay", () => {
+    const state = createInitialAppState(null);
+    expect(state.editor.showBaguaOverlay).toBe(false);
+
+    const shown = appReducer(state, { type: "set_show_bagua_overlay", value: true });
+    expect(shown.editor.showBaguaOverlay).toBe(true);
+    expect(shown.undoStack).toHaveLength(0);
+  });
+
   it("commit_editor pushes to undo stack and updates editor", () => {
     const base = createInitialAppState(null);
     const newEditor = { ...createDefaultEditorState(), northAngleDeg: 30 };

@@ -1174,6 +1174,23 @@ export default function App(): JSX.Element {
                     />
                   </label>
 
+                  <label>
+                    {ui("app.internal.baguaOverlay")}
+                    <button
+                      type="button"
+                      className={state.editor.showBaguaOverlay ? "active" : ""}
+                      aria-pressed={Boolean(state.editor.showBaguaOverlay)}
+                      onClick={() => {
+                        dispatch({
+                          type: "set_show_bagua_overlay",
+                          value: !state.editor.showBaguaOverlay
+                        });
+                      }}
+                    >
+                      {state.editor.showBaguaOverlay ? ui("app.common.on") : ui("app.common.off")}
+                    </button>
+                  </label>
+
                 </div>
               </section>
 

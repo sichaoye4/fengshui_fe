@@ -51,4 +51,27 @@ describe("deriveProjectState", () => {
     expect(derived.internal_layout.flags.toilet_in_center).toBe(true);
     expect(derived.internal_layout.flags.stair_in_center).toBe(false);
   });
+
+  it("derives qian palace sha flags from labeled room polygons", () => {
+    const editor = createDefaultEditorState();
+    editor.primitives = [
+      { id: "room-outer", kind: "room", x: 0, y: 0, width: 9, height: 9, roomType: "living" },
+      { id: "room-toilet", kind: "room", x: 0.25, y: 0.25, width: 1.5, height: 1.5, roomType: "toilet" }
+    ];
+
+    const derived = deriveProjectState(editor, createDefaultInputState());
+
+    expect(derived.internal_layout.flags.toilet_in_qian).toBe(true);
+  });
+
+  it("keeps manual palace flags as overrides", () => {
+    const editor = createDefaultEditorState();
+    editor.primitives = [{ id: "room-1", kind: "room", x: 0, y: 0, width: 9, height: 9, roomType: "living" }];
+    const inputs = createDefaultInputState();
+    inputs.manual_flags.toilet_in_qian = true;
+
+    const derived = deriveProjectState(editor, inputs);
+
+    expect(derived.internal_layout.flags.toilet_in_qian).toBe(true);
+  });
 });
