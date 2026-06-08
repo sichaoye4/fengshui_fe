@@ -148,7 +148,7 @@ export function FloorplanEditor({ language, tool, onComplete }: Props): JSX.Elem
       const formData = new FormData();
       formData.append("file", file);
       const res = await fetch(
-        "http://127.0.0.1:8000/api/v1/floorplan/analyze",
+        "/api/v1/floorplan/analyze",
         { method: "POST", body: formData }
       );
 
@@ -475,6 +475,7 @@ export function FloorplanEditor({ language, tool, onComplete }: Props): JSX.Elem
               canvasWidthM,
               canvasHeightM
             );
+            primitives.push(...userWalls);
             const entrance = userWallsToEntrance(
               userWalls,
               entranceWallId

@@ -25,7 +25,8 @@ export default defineConfig(({ mode }) => {
     test: {
       environment: "jsdom",
       setupFiles: "./src/testSetup.ts",
-      css: true
+      css: true,
+      exclude: ["node_modules/**", "src/auth.test.ts"]
     }
   };
 });

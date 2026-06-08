@@ -67,17 +67,6 @@ describe("appReducer — editor & structure tab", () => {
     expect(cleared.editor.selectedId).toBeNull();
   });
 
-  it("set_place_entrance_mode toggles entrance placement mode", () => {
-    const state = createInitialAppState(null);
-    expect(state.placeEntranceMode).toBe(false);
-
-    const enabled = appReducer(state, { type: "set_place_entrance_mode", value: true });
-    expect(enabled.placeEntranceMode).toBe(true);
-
-    const disabled = appReducer(enabled, { type: "set_place_entrance_mode", value: false });
-    expect(disabled.placeEntranceMode).toBe(false);
-  });
-
   it("set_analysis_mode switches between jingzhai and dongzhai", () => {
     const state = createInitialAppState(null);
     expect(state.analysisMode).toBe("jingzhai");

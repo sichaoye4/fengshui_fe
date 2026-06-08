@@ -1,7 +1,11 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FloorplanEditor } from "./FloorplanEditor";
+
+const konvaMock = vi.hoisted(() => ({
+  pointer: { x: 0, y: 0 }
+}));
 
 vi.mock("react-konva", () => {
   const MockGroup = ({ children }: { children?: React.ReactNode }) => (
@@ -9,7 +13,20 @@ vi.mock("react-konva", () => {
   );
   return {
     Stage: ({ children, ...props }: any) => (
-      <div data-testid="konva-stage" data-x={props.x} data-y={props.y} data-scale-x={props.scaleX} data-scale-y={props.scaleY}>
+      <div
+        data-testid="konva-stage"
+        data-x={props.x}
+        data-y={props.y}
+        data-scale-x={props.scaleX}
+        data-scale-y={props.scaleY}
+        onClick={() => {
+          const stage = {
+            getPointerPosition: () => konvaMock.pointer,
+            getStage: () => stage
+          };
+          props.onClick?.({ target: stage });
+        }}
+      >
         {children}
       </div>
     ),
@@ -17,6 +34,7 @@ vi.mock("react-konva", () => {
       <div data-testid="konva-layer">{children}</div>
     ),
     Group: MockGroup,
+    Image: () => <div data-testid="konva-image" />,
     Line: ({ onClick, ...props }: any) => (
       <div data-testid="konva-line" data-stroke={props.stroke} onClick={onClick} />
     ),
@@ -24,12 +42,36 @@ vi.mock("react-konva", () => {
 });
 vi.mock("konva", () => ({}));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 const defaultProps = {
   language: "en" as const,
+  tool: "select" as const,
   onComplete: vi.fn(),
 };
+
+function mockSuccessfulAnalyzeResponse() {
+  if ("createObjectURL" in URL) {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:floorplan");
+  } else {
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn(() => "blob:floorplan")
+    });
+  }
+  return vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+    ok: true,
+    json: async () => ({
+      width: 200,
+      height: 100,
+      walls: [[0, 0, 100, 0]],
+      rooms: []
+    })
+  } as Response);
+}
 
 describe("FloorplanEditor", () => {
   it("shows the upload phase with panel title", () => {
@@ -114,5 +156,68 @@ describe("FloorplanEditor", () => {
     await userEvent.click(screen.getByText("Retry"));
 
     expect(screen.getByText("Upload Floor Plan")).toBeInTheDocument();
+  });
+
+  it("uploads floorplans through the proxy-relative API path", async () => {
+    const fetchMock = mockSuccessfulAnalyzeResponse();
+
+    render(<FloorplanEditor {...defaultProps} />);
+
+    const input = document.querySelector<HTMLInputElement>(
+      '.floorplan-upload-zone input[type="file"]'
+    )!;
+    const file = new File(["floorplan"], "floorplan.jpg", { type: "image/jpeg" });
+
+    await userEvent.upload(input, file);
+    await screen.findByTestId("floorplan-editor");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/floorplan/analyze",
+      expect.objectContaining({ method: "POST", body: expect.any(FormData) })
+    );
+  });
+
+  it("passes user-drawn walls alongside CV walls on complete", async () => {
+    mockSuccessfulAnalyzeResponse();
+    const onComplete = vi.fn();
+
+    render(
+      <FloorplanEditor
+        language="en"
+        tool="wall"
+        onComplete={onComplete}
+      />
+    );
+
+    const input = document.querySelector<HTMLInputElement>(
+      '.floorplan-upload-zone input[type="file"]'
+    )!;
+    const file = new File(["floorplan"], "floorplan.jpg", { type: "image/jpeg" });
+
+    await userEvent.upload(input, file);
+    const stage = await screen.findByTestId("konva-stage");
+
+    konvaMock.pointer = { x: 0, y: 0 };
+    await userEvent.click(stage);
+    konvaMock.pointer = { x: 2, y: 0 };
+    await userEvent.click(stage);
+
+    await userEvent.click(screen.getByRole("button", { name: "Complete" }));
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
+    const [primitives, entrance] = onComplete.mock.calls[0];
+    expect(entrance).toBeNull();
+    expect(primitives).toEqual([
+      expect.objectContaining({
+        kind: "wall",
+        start: { x: 0, y: 0 },
+        end: { x: 1, y: 0 }
+      }),
+      expect.objectContaining({
+        kind: "wall",
+        start: { x: 0, y: 0 },
+        end: { x: 2, y: 0 }
+      })
+    ]);
   });
 });

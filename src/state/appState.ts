@@ -28,7 +28,6 @@ export interface AppState {
   analysisMode: "jingzhai" | "dongzhai";
   tabFindingFilters: TabFindingFilterState;
   showAdvancedExternal: boolean;
-  placeEntranceMode: boolean;
   loading: boolean;
   error: string;
   editor: EditorState;
@@ -51,7 +50,6 @@ export type AppAction =
   | { type: "reset_tab_finding_filters" }
   | { type: "set_analysis_mode"; mode: "jingzhai" | "dongzhai" }
   | { type: "set_show_advanced_external"; value: boolean }
-  | { type: "set_place_entrance_mode"; value: boolean }
   | { type: "set_loading"; value: boolean }
   | { type: "set_error"; value: string }
   | { type: "clear_error" }
@@ -110,7 +108,6 @@ export function createInitialAppState(snapshot: ProjectSnapshot | null): AppStat
       structure: "all"
     },
     showAdvancedExternal: false,
-    placeEntranceMode: false,
     loading: false,
     error: "",
     editor: snapshot?.editor ?? createDefaultEditorState(),
@@ -168,8 +165,6 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, analysisMode: action.mode };
     case "set_show_advanced_external":
       return { ...state, showAdvancedExternal: action.value };
-    case "set_place_entrance_mode":
-      return { ...state, placeEntranceMode: action.value };
     case "set_loading":
       return { ...state, loading: action.value };
     case "set_error":

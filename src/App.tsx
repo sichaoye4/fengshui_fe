@@ -1167,31 +1167,6 @@ export default function App(): JSX.Element {
                     />
                   </label>
 
-                  <div className="button-row">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        dispatch({
-                          type: "set_place_entrance_mode",
-                          value: !state.placeEntranceMode
-                        })
-                      }
-                    >
-                      {state.placeEntranceMode ? ui("app.internal.clickToPlaceEntrance") : ui("app.internal.setEntranceMarker")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        dispatch({
-                          type: "commit_editor",
-                          editor: { ...state.editor, entrance: null }
-                        });
-                        dispatch({ type: "set_place_entrance_mode", value: false });
-                      }}
-                    >
-                      {ui("app.internal.clearEntrance")}
-                    </button>
-                  </div>
                 </div>
               </section>
 

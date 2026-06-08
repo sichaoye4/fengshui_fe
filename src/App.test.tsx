@@ -1,11 +1,29 @@
 ﻿import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 
 vi.mock("./components/FloorplanEditor", () => ({
   FloorplanEditor: () => <div data-testid="floorplan-editor-mock" />
 }));
+
+beforeEach(() => {
+  window.localStorage.setItem(
+    "fengshui_auth_v1",
+    JSON.stringify({
+      token: "test-token",
+      user: {
+        id: "test-user-id",
+        username: "test-user",
+        display_name: "Test User",
+        is_active: true,
+        created_at: "2026-01-01T00:00:00Z",
+        last_login_at: null
+      },
+      stored_at: Date.now()
+    })
+  );
+});
 
 afterEach(() => {
   cleanup();
