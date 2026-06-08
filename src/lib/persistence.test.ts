@@ -7,7 +7,7 @@ describe("persistence hydration", () => {
     window.localStorage.clear();
   });
 
-  it("migrates 1.0 numeric fields and legacy owner into 1.2 draft fields", () => {
+  it("migrates 1.0 numeric fields and legacy owner into 1.3 draft fields", () => {
     const hydrated = hydrateProjectSnapshot({
       schema_version: "1.0",
       editor: {},
@@ -36,7 +36,7 @@ describe("persistence hydration", () => {
       evaluation: null
     });
 
-    expect(hydrated.schema_version).toBe("1.2");
+    expect(hydrated.schema_version).toBe("1.3");
     expect(hydrated.inputs.members[0]).toMatchObject({
       birth_year: "1990",
       gender: "male",
@@ -56,6 +56,115 @@ describe("persistence hydration", () => {
     });
     expect(hydrated.inputs.manual_categories).not.toHaveProperty("incoming_sha_element");
     expect(hydrated.inputs.house_area_override_m2).toBe("120");
+  });
+
+  it("hydrates legacy 1.2 snapshots with editor annotation defaults", () => {
+    const hydrated = hydrateProjectSnapshot({
+      schema_version: "1.2",
+      editor: {
+        primitives: [
+          { id: "room-1", kind: "room", x: 1, y: 2, width: 3, height: 4, label: "Living Room" }
+        ]
+      },
+      inputs: createDefaultInputState(),
+      evaluation: null
+    });
+
+    expect(hydrated.schema_version).toBe("1.3");
+    expect(hydrated.editor.showBaguaOverlay).toBe(false);
+    expect(hydrated.editor.floorplan).toBeUndefined();
+    expect(hydrated.editor.primitives[0]).toMatchObject({
+      id: "room-1",
+      kind: "room",
+      label: "Living Room",
+      roomType: "unknown"
+    });
+  });
+
+  it("preserves 1.3 polygon rooms, markers, and floorplan analysis", () => {
+    const hydrated = hydrateProjectSnapshot({
+      schema_version: "1.3",
+      editor: {
+        showBaguaOverlay: true,
+        floorplan: {
+          imageWidth: 200,
+          imageHeight: 100,
+          imageName: "floorplan.jpg",
+          contentType: "image/jpeg",
+          analysis: {
+            width: 200,
+            height: 100,
+            walls: [[0, 0, 200, 0]],
+            rooms: [[[0, 0], [100, 0], [100, 50], [0, 50]]]
+          }
+        },
+        primitives: [
+          {
+            id: "room-1",
+            kind: "room",
+            points: [
+              { x: 0, y: 0 },
+              { x: 4, y: 0 },
+              { x: 4, y: 3 },
+              { x: 0, y: 3 }
+            ],
+            roomType: "kitchen",
+            label: "Kitchen"
+          },
+          {
+            id: "marker-1",
+            kind: "marker",
+            markerType: "stove",
+            x: 2,
+            y: 1,
+            roomId: "room-1",
+            directionDeg: 725,
+            label: "Stove"
+          }
+        ]
+      },
+      inputs: createDefaultInputState(),
+      evaluation: null
+    });
+
+    expect(hydrated.editor.showBaguaOverlay).toBe(true);
+    expect(hydrated.editor.floorplan).toMatchObject({
+      imageWidth: 200,
+      imageHeight: 100,
+      imageName: "floorplan.jpg",
+      analysis: {
+        walls: [[0, 0, 200, 0]],
+        rooms: [[[0, 0], [100, 0], [100, 50], [0, 50]]]
+      }
+    });
+    expect(hydrated.editor.primitives).toEqual([
+      expect.objectContaining({
+        id: "room-1",
+        kind: "room",
+        x: 0,
+        y: 0,
+        width: 4,
+        height: 3,
+        roomType: "kitchen",
+        label: "Kitchen",
+        points: [
+          { x: 0, y: 0 },
+          { x: 4, y: 0 },
+          { x: 4, y: 3 },
+          { x: 0, y: 3 }
+        ]
+      }),
+      expect.objectContaining({
+        id: "marker-1",
+        kind: "marker",
+        markerType: "stove",
+        x: 2,
+        y: 1,
+        roomId: "room-1",
+        directionDeg: 5,
+        label: "Stove"
+      })
+    ]);
   });
 
   it("deep-merges defaults for partial/corrupt drafts", () => {
@@ -86,7 +195,7 @@ describe("persistence hydration", () => {
     saveDraft(snapshot);
     const loaded = loadDraft();
 
-    expect(loaded?.schema_version).toBe("1.2");
+    expect(loaded?.schema_version).toBe("1.3");
     expect(loaded?.inputs.house.name).toBe("untitled_house");
   });
 });

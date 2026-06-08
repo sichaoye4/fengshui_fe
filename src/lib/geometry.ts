@@ -27,7 +27,20 @@ export function segmentLengthM(segment: SegmentPrimitive): number {
   return Math.sqrt(dx * dx + dy * dy);
 }
 
+function polygonAreaM2(points: PointM[]): number {
+  let area = 0;
+  for (let i = 0; i < points.length; i += 1) {
+    const current = points[i];
+    const next = points[(i + 1) % points.length];
+    area += current.x * next.y - next.x * current.y;
+  }
+  return Math.abs(area / 2);
+}
+
 export function roomAreaM2(room: RoomPrimitive): number {
+  if (room.points && room.points.length >= 3) {
+    return polygonAreaM2(room.points);
+  }
   return Math.abs(room.width * room.height);
 }
 
@@ -51,10 +64,28 @@ export function primitiveBounds(primitives: Primitive[]): { minX: number; minY: 
 
   for (const primitive of primitives) {
     if (primitive.kind === "room") {
+      const points = primitive.points && primitive.points.length >= 3 ? primitive.points : null;
+      if (points) {
+        for (const point of points) {
+          minX = Math.min(minX, point.x);
+          minY = Math.min(minY, point.y);
+          maxX = Math.max(maxX, point.x);
+          maxY = Math.max(maxY, point.y);
+        }
+      } else {
+        minX = Math.min(minX, primitive.x);
+        minY = Math.min(minY, primitive.y);
+        maxX = Math.max(maxX, primitive.x + primitive.width);
+        maxY = Math.max(maxY, primitive.y + primitive.height);
+      }
+      continue;
+    }
+
+    if (primitive.kind === "marker") {
       minX = Math.min(minX, primitive.x);
       minY = Math.min(minY, primitive.y);
-      maxX = Math.max(maxX, primitive.x + primitive.width);
-      maxY = Math.max(maxY, primitive.y + primitive.height);
+      maxX = Math.max(maxX, primitive.x);
+      maxY = Math.max(maxY, primitive.y);
       continue;
     }
 

@@ -34,6 +34,8 @@ describe("constants", () => {
     expect(state.entrance).toBeNull();
     expect(state.primitives).toEqual([]);
     expect(state.selectedId).toBeNull();
+    expect(state.floorplan).toBeUndefined();
+    expect(state.showBaguaOverlay).toBe(false);
   });
 
   it("createDefaultInputState returns complete input state", () => {

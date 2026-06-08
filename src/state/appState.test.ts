@@ -142,6 +142,67 @@ describe("appReducer — editor & structure tab", () => {
     expect(committed.editor.primitives[0].kind).toBe("wall");
   });
 
+  it("emits 1.3 project snapshots", () => {
+    const state = createInitialAppState(null);
+    const snapshot = toProjectSnapshot(state);
+
+    expect(snapshot.schema_version).toBe("1.3");
+  });
+
+  it("sets room labels and room types", () => {
+    const base = createInitialAppState(null);
+    const withRoom = {
+      ...base,
+      editor: {
+        ...base.editor,
+        primitives: [{ id: "room-1", kind: "room" as const, x: 0, y: 0, width: 4, height: 3 }]
+      }
+    };
+
+    const labeled = appReducer(withRoom, { type: "set_room_label", id: "room-1", label: "Kitchen" });
+    const typed = appReducer(labeled, { type: "set_room_type", id: "room-1", roomType: "kitchen" });
+
+    expect(typed.editor.primitives[0]).toMatchObject({
+      id: "room-1",
+      kind: "room",
+      label: "Kitchen",
+      roomType: "kitchen"
+    });
+    expect(typed.undoStack).toHaveLength(2);
+  });
+
+  it("adds, updates, and removes marker primitives", () => {
+    const base = createInitialAppState(null);
+
+    const added = appReducer(base, {
+      type: "add_marker",
+      marker: {
+        id: "marker-1",
+        kind: "marker",
+        markerType: "main_door",
+        x: 1,
+        y: 2
+      }
+    });
+    const updated = appReducer(added, {
+      type: "update_marker",
+      id: "marker-1",
+      marker: { markerType: "entry_turn", directionDeg: 90, label: "Turn" }
+    });
+    const removed = appReducer(updated, { type: "remove_marker", id: "marker-1" });
+
+    expect(added.editor.selectedId).toBe("marker-1");
+    expect(updated.editor.primitives[0]).toMatchObject({
+      id: "marker-1",
+      kind: "marker",
+      markerType: "entry_turn",
+      directionDeg: 90,
+      label: "Turn"
+    });
+    expect(removed.editor.primitives).toEqual([]);
+    expect(removed.editor.selectedId).toBeNull();
+  });
+
   it("preserves entrance in editor state across commits", () => {
     const base = createInitialAppState(null);
     const withEntrance = createDefaultEditorState();

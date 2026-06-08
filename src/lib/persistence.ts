@@ -12,17 +12,33 @@ import { deriveProjectState } from "./derivation";
 import type {
   EditorState,
   EvaluationSnapshot,
+  FloorplanAnalysis,
+  FloorplanSource,
   HouseholdMemberInput,
   HouseMetaInput,
   InputDraftState,
   ManualCategories,
   ManualFlags,
   ManualMeasurements,
+  MarkerType,
   ProjectSnapshot
 } from "../types/fengshui";
 
 const STORAGE_KEY = "fengshui_ui_project_v1";
-const CURRENT_SCHEMA_VERSION = "1.2" as const;
+const CURRENT_SCHEMA_VERSION = "1.3" as const;
+
+const ROOM_TYPES = ["living", "bedroom", "toilet", "kitchen", "stair", "hallway", "storage", "balcony", "unknown"] as const;
+const MARKER_TYPES = [
+  "main_door",
+  "room_door",
+  "toilet_door",
+  "kitchen_door",
+  "window",
+  "toilet_fixture",
+  "stair",
+  "stove",
+  "entry_turn"
+] as const;
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -63,11 +79,100 @@ function readNumber(value: unknown, fallback: number): number {
   return fallback;
 }
 
+function readOptionalNumber(value: unknown): number | undefined {
+  const parsed = readNumber(value, Number.NaN);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 function readEnum<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
   if (typeof value === "string" && (allowed as readonly string[]).includes(value)) {
     return value as T;
   }
   return fallback;
+}
+
+function sanitizePoint(value: unknown): { x: number; y: number } | null {
+  if (Array.isArray(value)) {
+    const x = readNumber(value[0], Number.NaN);
+    const y = readNumber(value[1], Number.NaN);
+    return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+  }
+
+  const source = asRecord(value);
+  if (!source) {
+    return null;
+  }
+
+  const x = readNumber(source.x, Number.NaN);
+  const y = readNumber(source.y, Number.NaN);
+  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+}
+
+function sanitizePointArray(value: unknown): Array<{ x: number; y: number }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map(sanitizePoint).filter((point): point is { x: number; y: number } => point !== null);
+}
+
+function sanitizeFloorplanAnalysis(value: unknown): FloorplanAnalysis | undefined {
+  const source = asRecord(value);
+  if (!source) {
+    return undefined;
+  }
+
+  const width = Math.round(readNumber(source.width, Number.NaN));
+  const height = Math.round(readNumber(source.height, Number.NaN));
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return undefined;
+  }
+
+  const walls = (Array.isArray(source.walls) ? source.walls : [])
+    .map((wall) => {
+      if (!Array.isArray(wall) || wall.length < 4) {
+        return null;
+      }
+      const x1 = readNumber(wall[0], Number.NaN);
+      const y1 = readNumber(wall[1], Number.NaN);
+      const x2 = readNumber(wall[2], Number.NaN);
+      const y2 = readNumber(wall[3], Number.NaN);
+      return [x1, y1, x2, y2].every(Number.isFinite) ? ([x1, y1, x2, y2] as [number, number, number, number]) : null;
+    })
+    .filter((wall): wall is [number, number, number, number] => wall !== null);
+
+  const rooms = (Array.isArray(source.rooms) ? source.rooms : [])
+    .map((room) => {
+      const points = sanitizePointArray(room);
+      return points.length >= 3
+        ? points.map((point) => [point.x, point.y] as [number, number])
+        : null;
+    })
+    .filter((room): room is Array<[number, number]> => room !== null);
+
+  return { width, height, walls, rooms };
+}
+
+function sanitizeFloorplan(value: unknown): FloorplanSource | undefined {
+  const source = asRecord(value);
+  if (!source) {
+    return undefined;
+  }
+
+  const imageWidth = readNumber(source.imageWidth, Number.NaN);
+  const imageHeight = readNumber(source.imageHeight, Number.NaN);
+  if (!Number.isFinite(imageWidth) || !Number.isFinite(imageHeight) || imageWidth <= 0 || imageHeight <= 0) {
+    return undefined;
+  }
+
+  const analysis = sanitizeFloorplanAnalysis(source.analysis);
+  return {
+    ...(typeof source.imageDataUrl === "string" ? { imageDataUrl: source.imageDataUrl } : {}),
+    imageWidth,
+    imageHeight,
+    ...(typeof source.imageName === "string" ? { imageName: source.imageName } : {}),
+    ...(typeof source.contentType === "string" ? { contentType: source.contentType } : {}),
+    ...(analysis ? { analysis } : {})
+  };
 }
 
 function sanitizeEditor(rawEditor: unknown): EditorState {
@@ -91,11 +196,24 @@ function sanitizeEditor(rawEditor: unknown): EditorState {
       const id = readString(primitive.id, `legacy-${index}`);
 
       if (kind === "room") {
-        const x = readNumber(primitive.x, Number.NaN);
-        const y = readNumber(primitive.y, Number.NaN);
-        const width = readNumber(primitive.width, Number.NaN);
-        const height = readNumber(primitive.height, Number.NaN);
-        if (![x, y, width, height].every(Number.isFinite)) {
+        const points = sanitizePointArray(primitive.points);
+        const xs = points.map((point) => point.x);
+        const ys = points.map((point) => point.y);
+        const pointsBounds =
+          points.length >= 3
+            ? {
+                x: Math.min(...xs),
+                y: Math.min(...ys),
+                width: Math.max(...xs) - Math.min(...xs),
+                height: Math.max(...ys) - Math.min(...ys)
+              }
+            : null;
+
+        const x = readNumber(primitive.x, pointsBounds?.x ?? Number.NaN);
+        const y = readNumber(primitive.y, pointsBounds?.y ?? Number.NaN);
+        const width = readNumber(primitive.width, pointsBounds?.width ?? Number.NaN);
+        const height = readNumber(primitive.height, pointsBounds?.height ?? Number.NaN);
+        if (![x, y, width, height].every(Number.isFinite) || width < 0 || height < 0) {
           return null;
         }
         return {
@@ -105,6 +223,28 @@ function sanitizeEditor(rawEditor: unknown): EditorState {
           y,
           width,
           height,
+          ...(points.length >= 3 ? { points } : {}),
+          label: typeof primitive.label === "string" ? primitive.label : undefined,
+          roomType: readEnum(primitive.roomType, ROOM_TYPES, "unknown")
+        };
+      }
+
+      if (kind === "marker") {
+        const x = readNumber(primitive.x, Number.NaN);
+        const y = readNumber(primitive.y, Number.NaN);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          return null;
+        }
+
+        const directionDeg = readOptionalNumber(primitive.directionDeg);
+        return {
+          id,
+          kind: "marker" as const,
+          markerType: readEnum(primitive.markerType, MARKER_TYPES, "entry_turn") as MarkerType,
+          x,
+          y,
+          ...(typeof primitive.roomId === "string" ? { roomId: primitive.roomId } : {}),
+          ...(directionDeg !== undefined ? { directionDeg: ((directionDeg % 360) + 360) % 360 } : {}),
           label: typeof primitive.label === "string" ? primitive.label : undefined
         };
       }
@@ -149,7 +289,9 @@ function sanitizeEditor(rawEditor: unknown): EditorState {
         ? { x: readNumber(entrance.x, 0), y: readNumber(entrance.y, 0) }
         : null,
     primitives,
-    selectedId: typeof editor.selectedId === "string" ? editor.selectedId : null
+    selectedId: typeof editor.selectedId === "string" ? editor.selectedId : null,
+    floorplan: sanitizeFloorplan(editor.floorplan),
+    showBaguaOverlay: readBoolean(editor.showBaguaOverlay, defaults.showBaguaOverlay ?? false)
   };
 }
 

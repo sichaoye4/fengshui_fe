@@ -49,6 +49,28 @@ export interface PointM {
   y: number;
 }
 
+export type RoomType =
+  | "living"
+  | "bedroom"
+  | "toilet"
+  | "kitchen"
+  | "stair"
+  | "hallway"
+  | "storage"
+  | "balcony"
+  | "unknown";
+
+export type MarkerType =
+  | "main_door"
+  | "room_door"
+  | "toilet_door"
+  | "kitchen_door"
+  | "window"
+  | "toilet_fixture"
+  | "stair"
+  | "stove"
+  | "entry_turn";
+
 export interface ViewportState {
   x: number;
   y: number;
@@ -69,10 +91,32 @@ export interface RoomPrimitive {
   y: number;
   width: number;
   height: number;
+  points?: PointM[];
+  label?: string;
+  roomType?: RoomType;
+}
+
+export interface MarkerPrimitive {
+  id: string;
+  kind: "marker";
+  markerType: MarkerType;
+  x: number;
+  y: number;
+  roomId?: string;
+  directionDeg?: number;
   label?: string;
 }
 
-export type Primitive = SegmentPrimitive | RoomPrimitive;
+export type Primitive = SegmentPrimitive | RoomPrimitive | MarkerPrimitive;
+
+export interface FloorplanSource {
+  imageDataUrl?: string;
+  imageWidth: number;
+  imageHeight: number;
+  imageName?: string;
+  contentType?: string;
+  analysis?: FloorplanAnalysis;
+}
 
 export interface ManualFlags {
   stair_in_center: boolean;
@@ -169,6 +213,8 @@ export interface EditorState {
   entrance: PointM | null;
   primitives: Primitive[];
   selectedId: string | null;
+  floorplan?: FloorplanSource;
+  showBaguaOverlay?: boolean;
 }
 
 export interface DerivedState {
@@ -551,7 +597,7 @@ export interface EvaluationSnapshot {
 }
 
 export interface ProjectSnapshot {
-  schema_version: "1.0" | "1.1" | "1.2";
+  schema_version: "1.0" | "1.1" | "1.2" | "1.3";
   editor: EditorState;
   inputs: InputDraftState;
   derived: DerivedState;

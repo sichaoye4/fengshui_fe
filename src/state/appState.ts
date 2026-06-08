@@ -4,6 +4,7 @@ import type {
   AnalysisTab,
   EditorState,
   EvaluationSnapshot,
+  FloorplanSource,
   HouseholdMemberInput,
   FindingFilter,
   HouseMetaInput,
@@ -13,8 +14,10 @@ import type {
   ManualCategories,
   ManualFlags,
   ManualMeasurements,
+  MarkerPrimitive,
   ProjectSnapshot,
   PeriodFourYunResponse,
+  RoomType,
   TabFindingFilterState,
   TemporalDataSnapshot,
   Tool,
@@ -56,6 +59,13 @@ export type AppAction =
   | { type: "commit_editor"; editor: EditorState }
   | { type: "set_editor_viewport"; viewport: ViewportState }
   | { type: "set_editor_selected_id"; id: string | null }
+  | { type: "set_editor_floorplan"; floorplan: FloorplanSource | undefined }
+  | { type: "set_show_bagua_overlay"; value: boolean }
+  | { type: "set_room_label"; id: string; label: string }
+  | { type: "set_room_type"; id: string; roomType: RoomType }
+  | { type: "add_marker"; marker: MarkerPrimitive }
+  | { type: "update_marker"; id: string; marker: Partial<Omit<MarkerPrimitive, "id" | "kind">> }
+  | { type: "remove_marker"; id: string }
   | { type: "undo_editor" }
   | { type: "redo_editor" }
   | { type: "replace_snapshot"; snapshot: ProjectSnapshot }
@@ -130,11 +140,20 @@ export function createInitialAppState(snapshot: ProjectSnapshot | null): AppStat
 
 export function toProjectSnapshot(state: Pick<AppState, "editor" | "inputs" | "evaluation">): ProjectSnapshot {
   return {
-    schema_version: "1.2",
+    schema_version: "1.3",
     editor: state.editor,
     inputs: state.inputs,
     derived: deriveProjectState(state.editor, state.inputs),
     evaluation: state.evaluation
+  };
+}
+
+function commitEditorState(state: AppState, editor: EditorState): AppState {
+  return {
+    ...state,
+    editor,
+    undoStack: [...state.undoStack, state.editor],
+    redoStack: []
   };
 }
 
@@ -200,12 +219,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         error: ""
       };
     case "commit_editor":
-      return {
-        ...state,
-        editor: action.editor,
-        undoStack: [...state.undoStack, state.editor],
-        redoStack: []
-      };
+      return commitEditorState(state, action.editor);
     case "set_editor_viewport":
       return {
         ...state,
@@ -222,6 +236,58 @@ export function appReducer(state: AppState, action: AppAction): AppState {
           selectedId: action.id
         }
       };
+    case "set_editor_floorplan":
+      return commitEditorState(state, {
+        ...state.editor,
+        floorplan: action.floorplan
+      });
+    case "set_show_bagua_overlay":
+      return {
+        ...state,
+        editor: {
+          ...state.editor,
+          showBaguaOverlay: action.value
+        }
+      };
+    case "set_room_label":
+      return commitEditorState(state, {
+        ...state.editor,
+        primitives: state.editor.primitives.map((primitive) =>
+          primitive.kind === "room" && primitive.id === action.id
+            ? { ...primitive, label: action.label || undefined }
+            : primitive
+        )
+      });
+    case "set_room_type":
+      return commitEditorState(state, {
+        ...state.editor,
+        primitives: state.editor.primitives.map((primitive) =>
+          primitive.kind === "room" && primitive.id === action.id
+            ? { ...primitive, roomType: action.roomType }
+            : primitive
+        )
+      });
+    case "add_marker":
+      return commitEditorState(state, {
+        ...state.editor,
+        primitives: [...state.editor.primitives, action.marker],
+        selectedId: action.marker.id
+      });
+    case "update_marker":
+      return commitEditorState(state, {
+        ...state.editor,
+        primitives: state.editor.primitives.map((primitive) =>
+          primitive.kind === "marker" && primitive.id === action.id
+            ? { ...primitive, ...action.marker }
+            : primitive
+        )
+      });
+    case "remove_marker":
+      return commitEditorState(state, {
+        ...state.editor,
+        primitives: state.editor.primitives.filter((primitive) => primitive.kind !== "marker" || primitive.id !== action.id),
+        selectedId: state.editor.selectedId === action.id ? null : state.editor.selectedId
+      });
     case "undo_editor": {
       const previous = state.undoStack[state.undoStack.length - 1];
       if (!previous) {

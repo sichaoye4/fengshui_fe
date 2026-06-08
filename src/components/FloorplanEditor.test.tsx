@@ -53,7 +53,7 @@ const defaultProps = {
   onComplete: vi.fn(),
 };
 
-function mockSuccessfulAnalyzeResponse() {
+function mockSuccessfulAnalyzeResponse(rooms: Array<Array<[number, number]>> = []) {
   if ("createObjectURL" in URL) {
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:floorplan");
   } else {
@@ -68,7 +68,7 @@ function mockSuccessfulAnalyzeResponse() {
       width: 200,
       height: 100,
       walls: [[0, 0, 100, 0]],
-      rooms: []
+      rooms
     })
   } as Response);
 }
@@ -219,5 +219,61 @@ describe("FloorplanEditor", () => {
         end: { x: 2, y: 0 }
       })
     ]);
+  });
+
+  it("passes CV room polygons and floorplan metadata on complete", async () => {
+    mockSuccessfulAnalyzeResponse([[[0, 0], [100, 0], [100, 50], [0, 50]]]);
+    const onComplete = vi.fn();
+
+    render(
+      <FloorplanEditor
+        language="en"
+        tool="select"
+        onComplete={onComplete}
+      />
+    );
+
+    const input = document.querySelector<HTMLInputElement>(
+      '.floorplan-upload-zone input[type="file"]'
+    )!;
+    const file = new File(["floorplan"], "floorplan.jpg", { type: "image/jpeg" });
+
+    await userEvent.upload(input, file);
+    await screen.findByTestId("floorplan-editor");
+    await userEvent.click(screen.getByRole("button", { name: "Complete" }));
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
+    const [primitives, , floorplan] = onComplete.mock.calls[0];
+
+    expect(primitives).toEqual([
+      expect.objectContaining({
+        kind: "room",
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 0.5,
+        roomType: "unknown",
+        points: [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+          { x: 1, y: 0.5 },
+          { x: 0, y: 0.5 }
+        ]
+      }),
+      expect.objectContaining({
+        kind: "wall",
+        start: { x: 0, y: 0 },
+        end: { x: 1, y: 0 }
+      })
+    ]);
+    expect(floorplan).toMatchObject({
+      imageWidth: 200,
+      imageHeight: 100,
+      imageName: "floorplan.jpg",
+      contentType: "image/jpeg",
+      analysis: {
+        rooms: [[[0, 0], [100, 0], [100, 50], [0, 50]]]
+      }
+    });
   });
 });

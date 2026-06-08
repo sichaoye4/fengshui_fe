@@ -1173,10 +1173,10 @@ export default function App(): JSX.Element {
               <FloorplanEditor
                 language={state.language}
                 tool={state.tool}
-                onComplete={(primitives, entrance) => {
+                onComplete={(primitives, entrance, floorplan) => {
                   dispatch({
                     type: "commit_editor",
-                    editor: { ...state.editor, primitives, entrance }
+                    editor: { ...state.editor, primitives, entrance, floorplan }
                   });
                 }}
               />

@@ -4,9 +4,11 @@ import { DEFAULT_CANVAS_SIZE, PIXELS_PER_METER } from "../constants";
 import { t } from "../i18n/ui";
 import { metersToPixels, pixelsToMeters } from "../lib/geometry";
 import { makeId } from "../lib/id";
-import { cvWallsToPrimitives, userWallsToEntrance } from "../lib/floorplan";
+import { cvAnalysisToPrimitives, userWallsToEntrance } from "../lib/floorplan";
 import type {
+  FloorplanAnalysis,
   FloorplanPhase,
+  FloorplanSource,
   Language,
   PointM,
   Primitive,
@@ -18,7 +20,7 @@ import type {
 interface Props {
   language: Language;
   tool: Tool;
-  onComplete: (primitives: Primitive[], entrance: PointM | null) => void;
+  onComplete: (primitives: Primitive[], entrance: PointM | null, floorplan?: FloorplanSource) => void;
 }
 
 const CANVAS_WORLD_LIMIT_M = 50;
@@ -32,7 +34,8 @@ export function FloorplanEditor({ language, tool, onComplete }: Props): JSX.Elem
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageWidth, setImageWidth] = useState(0);
   const [imageHeight, setImageHeight] = useState(0);
-  const [cvWalls, setCvWalls] = useState<Array<[number, number, number, number]>>([]);
+  const [analysis, setAnalysis] = useState<FloorplanAnalysis | null>(null);
+  const [imageFileMeta, setImageFileMeta] = useState<Pick<FloorplanSource, "imageName" | "contentType">>({});
   const [userWalls, setUserWalls] = useState<SegmentPrimitive[]>([]);
   const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
   const [entranceWallId, setEntranceWallId] = useState<string | null>(null);
@@ -158,11 +161,16 @@ export function FloorplanEditor({ language, tool, onComplete }: Props): JSX.Elem
 
       const data = await res.json();
       const url = URL.createObjectURL(file);
+      const floorplanAnalysis = data as FloorplanAnalysis;
 
       setImageUrl(url);
-      setImageWidth(data.width);
-      setImageHeight(data.height);
-      setCvWalls(data.walls);
+      setImageWidth(floorplanAnalysis.width);
+      setImageHeight(floorplanAnalysis.height);
+      setAnalysis(floorplanAnalysis);
+      setImageFileMeta({
+        imageName: file.name,
+        contentType: file.type || undefined
+      });
       setPhase("edit");
     } catch (err) {
       setError(
@@ -367,7 +375,7 @@ export function FloorplanEditor({ language, tool, onComplete }: Props): JSX.Elem
             )}
 
             {/* Layer 3 — CV-detected walls */}
-            {cvWalls.map(([x1, y1, x2, y2], idx) => (
+            {(analysis?.walls ?? []).map(([x1, y1, x2, y2], idx) => (
               <Line
                 key={`cv-${idx}`}
                 points={[x1, y1, x2, y2]}
@@ -468,19 +476,27 @@ export function FloorplanEditor({ language, tool, onComplete }: Props): JSX.Elem
           onClick={() => {
             const canvasWidthM = imageWidth / PIXELS_PER_METER;
             const canvasHeightM = imageHeight / PIXELS_PER_METER;
-            const primitives = cvWallsToPrimitives(
-              cvWalls,
-              imageWidth,
-              imageHeight,
-              canvasWidthM,
-              canvasHeightM
-            );
+            const primitives = analysis
+              ? cvAnalysisToPrimitives(
+                  analysis,
+                  canvasWidthM,
+                  canvasHeightM
+                )
+              : [];
             primitives.push(...userWalls);
             const entrance = userWallsToEntrance(
               userWalls,
               entranceWallId
             );
-            onComplete(primitives, entrance);
+            const floorplan: FloorplanSource | undefined = analysis
+              ? {
+                  imageWidth,
+                  imageHeight,
+                  ...imageFileMeta,
+                  analysis
+                }
+              : undefined;
+            onComplete(primitives, entrance, floorplan);
           }}
         >
           {t(language, "floorplan.complete")}

@@ -91,7 +91,8 @@ export function createDefaultEditorState(): EditorState {
     northAngleDeg: 0,
     entrance: null,
     primitives: [],
-    selectedId: null
+    selectedId: null,
+    showBaguaOverlay: false
   };
 }
 
