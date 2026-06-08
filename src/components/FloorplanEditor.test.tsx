@@ -36,8 +36,15 @@ vi.mock("react-konva", () => {
     Group: MockGroup,
     Image: () => <div data-testid="konva-image" />,
     Line: ({ onClick, ...props }: any) => (
-      <div data-testid="konva-line" data-stroke={props.stroke} onClick={onClick} />
+      <div
+        data-testid={props["data-testid"] ?? "konva-line"}
+        data-stroke={props.stroke}
+        data-fill={props.fill}
+        data-opacity={props.opacity}
+        onClick={(event) => onClick?.({ ...event, cancelBubble: false })}
+      />
     ),
+    Text: ({ text }: any) => <div data-testid="konva-text">{text}</div>,
   };
 });
 vi.mock("konva", () => ({}));
@@ -275,5 +282,47 @@ describe("FloorplanEditor", () => {
         rooms: [[[0, 0], [100, 0], [100, 50], [0, 50]]]
       }
     });
+  });
+
+  it("renders saved room polygons and selects a room on click", async () => {
+    const onSelectPrimitive = vi.fn();
+
+    render(
+      <FloorplanEditor
+        language="en"
+        tool="select"
+        editor={{
+          gridSizeM: 0.1,
+          viewport: { x: 0, y: 0, scale: 1 },
+          northAngleDeg: 0,
+          entrance: null,
+          selectedId: null,
+          primitives: [
+            {
+              id: "room-1",
+              kind: "room",
+              x: 0,
+              y: 0,
+              width: 2,
+              height: 2,
+              roomType: "toilet",
+              label: "Bath"
+            },
+            { id: "wall-1", kind: "wall", start: { x: 0, y: 0 }, end: { x: 2, y: 0 } }
+          ]
+        }}
+        selectedId={null}
+        onSelectPrimitive={onSelectPrimitive}
+        onComplete={vi.fn()}
+      />
+    );
+
+    const room = await screen.findByTestId("room-polygon-room-1");
+    expect(room).toHaveAttribute("data-fill", "#06b6d4");
+    expect(room).toHaveAttribute("data-opacity", "0.26");
+
+    await userEvent.click(room);
+    expect(onSelectPrimitive).toHaveBeenCalledWith("room-1");
+    expect(screen.getByText("Bath")).toBeInTheDocument();
   });
 });

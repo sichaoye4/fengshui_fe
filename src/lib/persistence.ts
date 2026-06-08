@@ -4,6 +4,7 @@ import {
   DIRECTION24_OPTIONS,
   MAX_HOUSEHOLD_MEMBERS,
   OWNER_GENDER_OPTIONS,
+  ROOM_TYPE_OPTIONS,
   STRENGTH_OPTIONS,
   createDefaultEditorState,
   createDefaultInputState
@@ -27,7 +28,6 @@ import type {
 const STORAGE_KEY = "fengshui_ui_project_v1";
 const CURRENT_SCHEMA_VERSION = "1.3" as const;
 
-const ROOM_TYPES = ["living", "bedroom", "toilet", "kitchen", "stair", "hallway", "storage", "balcony", "unknown"] as const;
 const MARKER_TYPES = [
   "main_door",
   "room_door",
@@ -225,7 +225,7 @@ function sanitizeEditor(rawEditor: unknown): EditorState {
           height,
           ...(points.length >= 3 ? { points } : {}),
           label: typeof primitive.label === "string" ? primitive.label : undefined,
-          roomType: readEnum(primitive.roomType, ROOM_TYPES, "unknown")
+          roomType: readEnum(primitive.roomType, ROOM_TYPE_OPTIONS, "unknown")
         };
       }
 

@@ -20,6 +20,7 @@ import { LanguageToggle } from "./components/LanguageToggle";
 import { LoginPage } from "./components/LoginPage";
 import { saveSession, loadAuth, clearAuth, getLatestSession, getStoredToken, type UserPublic, type SessionDetailResponse } from "./api/auth";
 import { ResultsPanel } from "./components/ResultsPanel";
+import { RoomLabelPanel } from "./components/RoomLabelPanel";
 import { TemporalPanel } from "./components/TemporalPanel";
 import { ToolPanel } from "./components/ToolPanel";
 import { deriveProjectState } from "./lib/derivation";
@@ -49,6 +50,8 @@ import type {
   LiqiHouseResponse,
   ManualCategories,
   PeriodFourYunResponse,
+  RoomPrimitive,
+  RoomType,
   TemporalAnnualResponse,
   TemporalMonthlyResponse
 } from "./types/fengshui";
@@ -194,8 +197,12 @@ export default function App(): JSX.Element {
 
   const derived = useMemo(() => deriveProjectState(state.editor, state.inputs), [state.editor, state.inputs]);
   const rooms = useMemo(
-    () => state.editor.primitives.filter((item) => item.kind === "room"),
+    () => state.editor.primitives.filter((item): item is RoomPrimitive => item.kind === "room"),
     [state.editor.primitives]
+  );
+  const selectedRoom = useMemo(
+    () => rooms.find((room) => room.id === state.editor.selectedId) ?? null,
+    [rooms, state.editor.selectedId]
   );
   const baziDate = useMemo(
     () => calculateBaziDate(state.inputs.temporal.gregorian_date, state.inputs.temporal.gregorian_time),
@@ -1173,11 +1180,23 @@ export default function App(): JSX.Element {
               <FloorplanEditor
                 language={state.language}
                 tool={state.tool}
+                editor={state.editor}
+                selectedId={state.editor.selectedId}
+                onSelectPrimitive={(id) => dispatch({ type: "set_editor_selected_id", id })}
+                onViewportChange={(viewport) => dispatch({ type: "set_editor_viewport", viewport })}
                 onComplete={(primitives, entrance, floorplan) => {
                   dispatch({
                     type: "commit_editor",
                     editor: { ...state.editor, primitives, entrance, floorplan }
                   });
+                }}
+              />
+
+              <RoomLabelPanel
+                language={state.language}
+                room={selectedRoom}
+                onChange={(id, update: { label?: string; roomType?: RoomType }) => {
+                  dispatch({ type: "set_room_label", id, ...update });
                 }}
               />
 

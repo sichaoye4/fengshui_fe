@@ -159,8 +159,12 @@ describe("appReducer — editor & structure tab", () => {
       }
     };
 
-    const labeled = appReducer(withRoom, { type: "set_room_label", id: "room-1", label: "Kitchen" });
-    const typed = appReducer(labeled, { type: "set_room_type", id: "room-1", roomType: "kitchen" });
+    const typed = appReducer(withRoom, {
+      type: "set_room_label",
+      id: "room-1",
+      label: "Kitchen",
+      roomType: "kitchen"
+    });
 
     expect(typed.editor.primitives[0]).toMatchObject({
       id: "room-1",
@@ -168,7 +172,7 @@ describe("appReducer — editor & structure tab", () => {
       label: "Kitchen",
       roomType: "kitchen"
     });
-    expect(typed.undoStack).toHaveLength(2);
+    expect(typed.undoStack).toHaveLength(1);
   });
 
   it("adds, updates, and removes marker primitives", () => {

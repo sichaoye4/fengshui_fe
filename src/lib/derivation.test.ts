@@ -37,4 +37,18 @@ describe("deriveProjectState", () => {
     expect(derived.house_area_m2).toBe(88);
     expect(derived.mingtang_area_m2).toBe(22);
   });
+
+  it("derives center sha flags from labeled room types", () => {
+    const editor = createDefaultEditorState();
+    editor.primitives = [
+      { id: "room-outer", kind: "room", x: 0, y: 0, width: 9, height: 9, roomType: "living" },
+      { id: "room-toilet", kind: "room", x: 3.5, y: 3.5, width: 1, height: 1, roomType: "toilet" },
+      { id: "room-stair", kind: "room", x: 6.5, y: 6.5, width: 1, height: 1, roomType: "stair" }
+    ];
+
+    const derived = deriveProjectState(editor, createDefaultInputState());
+
+    expect(derived.internal_layout.flags.toilet_in_center).toBe(true);
+    expect(derived.internal_layout.flags.stair_in_center).toBe(false);
+  });
 });

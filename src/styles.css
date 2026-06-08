@@ -611,6 +611,14 @@ textarea {
   background: rgba(252, 253, 251, 0.9);
 }
 
+.room-label-panel .panel-header-inline {
+  align-items: baseline;
+}
+
+.room-label-panel .meta-text {
+  overflow-wrap: anywhere;
+}
+
 .meta-text {
   color: var(--ink-500);
   font-size: 0.86rem;

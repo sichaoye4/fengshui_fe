@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Image, Layer, Group, Line, Stage } from "react-konva";
+import { Image, Layer, Group, Line, Stage, Text } from "react-konva";
 import { DEFAULT_CANVAS_SIZE, PIXELS_PER_METER } from "../constants";
 import { t } from "../i18n/ui";
-import { metersToPixels, pixelsToMeters } from "../lib/geometry";
+import { metersToPixels } from "../lib/geometry";
 import { makeId } from "../lib/id";
 import { cvAnalysisToPrimitives, userWallsToEntrance } from "../lib/floorplan";
 import type {
+  EditorState,
   FloorplanAnalysis,
   FloorplanPhase,
   FloorplanSource,
   Language,
   PointM,
   Primitive,
+  RoomPrimitive,
+  RoomType,
   SegmentPrimitive,
   Tool,
   ViewportState
@@ -20,6 +23,10 @@ import type {
 interface Props {
   language: Language;
   tool: Tool;
+  editor?: EditorState;
+  selectedId?: string | null;
+  onSelectPrimitive?: (id: string | null) => void;
+  onViewportChange?: (viewport: ViewportState) => void;
   onComplete: (primitives: Primitive[], entrance: PointM | null, floorplan?: FloorplanSource) => void;
 }
 
@@ -29,13 +36,84 @@ const SNAP_GRID_M = 0.1;
 const DRAW_MIN_DISTANCE_M = 0.5;
 const SNAP_ANGLE_TOLERANCE_DEG = 15;
 
-export function FloorplanEditor({ language, tool, onComplete }: Props): JSX.Element {
-  const [phase, setPhase] = useState<FloorplanPhase>("upload");
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [imageWidth, setImageWidth] = useState(0);
-  const [imageHeight, setImageHeight] = useState(0);
-  const [analysis, setAnalysis] = useState<FloorplanAnalysis | null>(null);
-  const [imageFileMeta, setImageFileMeta] = useState<Pick<FloorplanSource, "imageName" | "contentType">>({});
+const ROOM_TYPE_COLORS: Record<RoomType, string> = {
+  unknown: "#94a3b8",
+  living: "#22c55e",
+  bedroom: "#3b82f6",
+  toilet: "#06b6d4",
+  kitchen: "#f97316",
+  stair: "#8b5cf6",
+  hallway: "#eab308",
+  storage: "#64748b",
+  balcony: "#14b8a6"
+};
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error("Unable to read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function roomPolygonPointsPx(room: RoomPrimitive): number[] {
+  const points =
+    room.points && room.points.length >= 3
+      ? room.points
+      : [
+          { x: room.x, y: room.y },
+          { x: room.x + room.width, y: room.y },
+          { x: room.x + room.width, y: room.y + room.height },
+          { x: room.x, y: room.y + room.height }
+        ];
+
+  return points.flatMap((point) => [metersToPixels(point.x), metersToPixels(point.y)]);
+}
+
+function roomLabelPositionPx(room: RoomPrimitive): { x: number; y: number } {
+  const points =
+    room.points && room.points.length >= 3
+      ? room.points
+      : [
+          { x: room.x, y: room.y },
+          { x: room.x + room.width, y: room.y },
+          { x: room.x + room.width, y: room.y + room.height },
+          { x: room.x, y: room.y + room.height }
+        ];
+  const center = points.reduce(
+    (acc, point) => ({ x: acc.x + point.x / points.length, y: acc.y + point.y / points.length }),
+    { x: 0, y: 0 }
+  );
+  return { x: metersToPixels(center.x), y: metersToPixels(center.y) };
+}
+
+function segmentStroke(segment: SegmentPrimitive): string {
+  if (segment.kind === "door") return "#b45309";
+  if (segment.kind === "window") return "#2563eb";
+  return "#1e293b";
+}
+
+export function FloorplanEditor({
+  language,
+  tool,
+  editor,
+  selectedId = null,
+  onSelectPrimitive,
+  onViewportChange,
+  onComplete
+}: Props): JSX.Element {
+  const hasExistingFloorplan = Boolean(editor?.floorplan || editor?.primitives.length);
+  const [phase, setPhase] = useState<FloorplanPhase>(hasExistingFloorplan ? "edit" : "upload");
+  const [imageUrl, setImageUrl] = useState<string | null>(editor?.floorplan?.imageDataUrl ?? null);
+  const [imageDataUrl, setImageDataUrl] = useState<string | undefined>(editor?.floorplan?.imageDataUrl);
+  const [imageWidth, setImageWidth] = useState(editor?.floorplan?.imageWidth ?? 0);
+  const [imageHeight, setImageHeight] = useState(editor?.floorplan?.imageHeight ?? 0);
+  const [analysis, setAnalysis] = useState<FloorplanAnalysis | null>(editor?.floorplan?.analysis ?? null);
+  const [imageFileMeta, setImageFileMeta] = useState<Pick<FloorplanSource, "imageName" | "contentType">>({
+    imageName: editor?.floorplan?.imageName,
+    contentType: editor?.floorplan?.contentType
+  });
   const [userWalls, setUserWalls] = useState<SegmentPrimitive[]>([]);
   const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
   const [entranceWallId, setEntranceWallId] = useState<string | null>(null);
@@ -44,9 +122,9 @@ export function FloorplanEditor({ language, tool, onComplete }: Props): JSX.Elem
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viewport, setViewport] = useState<ViewportState>({
-    x: 0,
-    y: 0,
-    scale: 1
+    x: editor?.viewport.x ?? 0,
+    y: editor?.viewport.y ?? 0,
+    scale: editor?.viewport.scale ?? 1
   });
 
   const stageRef = useRef<import("konva/lib/Stage").Stage | null>(null);
@@ -54,6 +132,42 @@ export function FloorplanEditor({ language, tool, onComplete }: Props): JSX.Elem
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const gridStepPx = metersToPixels(0.1);
+
+  const savedRooms = useMemo(
+    () => editor?.primitives.filter((item): item is RoomPrimitive => item.kind === "room") ?? [],
+    [editor?.primitives]
+  );
+  const savedSegments = useMemo(
+    () =>
+      editor?.primitives.filter(
+        (item): item is SegmentPrimitive => item.kind === "wall" || item.kind === "door" || item.kind === "window"
+      ) ?? [],
+    [editor?.primitives]
+  );
+  const shouldRenderSavedPrimitives = savedRooms.length > 0 || savedSegments.length > 0;
+
+  useEffect(() => {
+    if (!editor?.floorplan && !editor?.primitives.length) {
+      return;
+    }
+    setPhase("edit");
+    setImageUrl(editor.floorplan?.imageDataUrl ?? null);
+    setImageDataUrl(editor.floorplan?.imageDataUrl);
+    setImageWidth(editor.floorplan?.imageWidth ?? imageWidth);
+    setImageHeight(editor.floorplan?.imageHeight ?? imageHeight);
+    setAnalysis(editor.floorplan?.analysis ?? null);
+    setImageFileMeta({
+      imageName: editor.floorplan?.imageName,
+      contentType: editor.floorplan?.contentType
+    });
+  }, [editor?.floorplan, editor?.primitives.length]);
+
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+    setViewport(editor.viewport);
+  }, [editor?.viewport.x, editor?.viewport.y, editor?.viewport.scale]);
 
   const gridLines = useMemo(() => {
     const worldLimitPx = metersToPixels(CANVAS_WORLD_LIMIT_M);
@@ -160,10 +274,13 @@ export function FloorplanEditor({ language, tool, onComplete }: Props): JSX.Elem
       }
 
       const data = await res.json();
-      const url = URL.createObjectURL(file);
+      const dataUrl = await fileToDataUrl(file).catch(() =>
+        "createObjectURL" in URL ? URL.createObjectURL(file) : ""
+      );
       const floorplanAnalysis = data as FloorplanAnalysis;
 
-      setImageUrl(url);
+      setImageUrl(dataUrl || null);
+      setImageDataUrl(dataUrl.startsWith("data:") ? dataUrl : undefined);
       setImageWidth(floorplanAnalysis.width);
       setImageHeight(floorplanAnalysis.height);
       setAnalysis(floorplanAnalysis);
@@ -213,11 +330,13 @@ export function FloorplanEditor({ language, tool, onComplete }: Props): JSX.Elem
       y: (pointer.y - viewport.y) / oldScale
     };
 
-    setViewport({
+    const nextViewport = {
       scale: clampedScale,
       x: pointer.x - mousePointTo.x * clampedScale,
       y: pointer.y - mousePointTo.y * clampedScale
-    });
+    };
+    setViewport(nextViewport);
+    onViewportChange?.(nextViewport);
   };
 
   if (phase === "upload") {
@@ -275,11 +394,13 @@ export function FloorplanEditor({ language, tool, onComplete }: Props): JSX.Elem
           scaleX={viewport.scale}
           scaleY={viewport.scale}
           onDragEnd={(event) => {
-            setViewport({
+            const nextViewport = {
               ...viewport,
               x: event.target.x(),
               y: event.target.y()
-            });
+            };
+            setViewport(nextViewport);
+            onViewportChange?.(nextViewport);
           }}
           onClick={(e) => {
             // Only handle clicks directly on the stage background (not on shapes)
@@ -289,6 +410,7 @@ export function FloorplanEditor({ language, tool, onComplete }: Props): JSX.Elem
 
             if (tool === "select") {
               setSelectedWallId(null);
+              onSelectPrimitive?.(null);
               setDrawStart(null);
               setDrawCurrent(null);
               return;
@@ -374,20 +496,99 @@ export function FloorplanEditor({ language, tool, onComplete }: Props): JSX.Elem
               />
             )}
 
-            {/* Layer 3 — CV-detected walls */}
-            {(analysis?.walls ?? []).map(([x1, y1, x2, y2], idx) => (
-              <Line
-                key={`cv-${idx}`}
-                points={[x1, y1, x2, y2]}
-                stroke="#22c55e"
-                strokeWidth={2}
-                opacity={0.6}
-                listening={false}
-              />
-            ))}
+            {/* Layer 3 — Room polygons */}
+            {shouldRenderSavedPrimitives
+              ? savedRooms.map((room) => {
+                  const color = ROOM_TYPE_COLORS[room.roomType ?? "unknown"];
+                  const labelPosition = roomLabelPositionPx(room);
+                  const label = room.label || t(language, "floorplan.defaultRoom");
+                  return (
+                    <Group key={room.id}>
+                      <Line
+                        data-testid={`room-polygon-${room.id}`}
+                        points={roomPolygonPointsPx(room)}
+                        fill={color}
+                        opacity={0.26}
+                        stroke={selectedId === room.id ? "#0f172a" : color}
+                        strokeWidth={selectedId === room.id ? 3 : 1.5}
+                        closed
+                        onClick={(event) => {
+                          event.cancelBubble = true;
+                          if (tool !== "select") {
+                            return;
+                          }
+                          setSelectedWallId(null);
+                          onSelectPrimitive?.(room.id);
+                          setDrawStart(null);
+                          setDrawCurrent(null);
+                        }}
+                        onTap={(event) => {
+                          event.cancelBubble = true;
+                          if (tool !== "select") {
+                            return;
+                          }
+                          setSelectedWallId(null);
+                          onSelectPrimitive?.(room.id);
+                          setDrawStart(null);
+                          setDrawCurrent(null);
+                        }}
+                      />
+                      <Text
+                        text={label}
+                        x={labelPosition.x - 38}
+                        y={labelPosition.y - 10}
+                        width={76}
+                        align="center"
+                        fontSize={12}
+                        fill="#0f172a"
+                        listening={false}
+                      />
+                    </Group>
+                  );
+                })
+              : (analysis?.rooms ?? []).map((room, idx) => (
+                  <Line
+                    key={`cv-room-${idx}`}
+                    points={room.flatMap(([x, y]) => [x, y])}
+                    fill={ROOM_TYPE_COLORS.unknown}
+                    opacity={0.22}
+                    stroke={ROOM_TYPE_COLORS.unknown}
+                    strokeWidth={1.5}
+                    closed
+                    listening={false}
+                  />
+                ))}
 
-            {/* Layer 4 — User walls */}
-            {userWalls.map((wall) => (
+            {/* Layer 4 — CV and saved walls */}
+            {shouldRenderSavedPrimitives
+              ? savedSegments.map((segment) => (
+                  <Line
+                    key={segment.id}
+                    points={[
+                      metersToPixels(segment.start.x),
+                      metersToPixels(segment.start.y),
+                      metersToPixels(segment.end.x),
+                      metersToPixels(segment.end.y)
+                    ]}
+                    stroke={segmentStroke(segment)}
+                    strokeWidth={segment.kind === "wall" ? 3 : 2.5}
+                    opacity={segment.kind === "wall" ? 0.85 : 0.75}
+                    listening={false}
+                  />
+                ))
+              : (analysis?.walls ?? []).map(([x1, y1, x2, y2], idx) => (
+                  <Line
+                    key={`cv-${idx}`}
+                    points={[x1, y1, x2, y2]}
+                    stroke="#22c55e"
+                    strokeWidth={2}
+                    opacity={0.6}
+                    listening={false}
+                  />
+                ))}
+
+            {/* Layer 5 — User walls */}
+            {!shouldRenderSavedPrimitives && userWalls.map((wall) => (
               <Line
                 key={wall.id}
                 points={[
@@ -476,26 +677,34 @@ export function FloorplanEditor({ language, tool, onComplete }: Props): JSX.Elem
           onClick={() => {
             const canvasWidthM = imageWidth / PIXELS_PER_METER;
             const canvasHeightM = imageHeight / PIXELS_PER_METER;
-            const primitives = analysis
-              ? cvAnalysisToPrimitives(
-                  analysis,
-                  canvasWidthM,
-                  canvasHeightM
-                )
-              : [];
-            primitives.push(...userWalls);
-            const entrance = userWallsToEntrance(
-              userWalls,
-              entranceWallId
-            );
-            const floorplan: FloorplanSource | undefined = analysis
-              ? {
-                  imageWidth,
-                  imageHeight,
-                  ...imageFileMeta,
-                  analysis
-                }
-              : undefined;
+            const primitives = shouldRenderSavedPrimitives
+              ? [...(editor?.primitives ?? [])]
+              : analysis
+                ? cvAnalysisToPrimitives(
+                    analysis,
+                    canvasWidthM,
+                    canvasHeightM
+                  )
+                : [];
+            if (!shouldRenderSavedPrimitives) {
+              primitives.push(...userWalls);
+            }
+            const entrance = shouldRenderSavedPrimitives
+              ? editor?.entrance ?? null
+              : userWallsToEntrance(
+                  userWalls,
+                  entranceWallId
+                );
+            const floorplan: FloorplanSource | undefined = editor?.floorplan ??
+              (analysis
+                ? {
+                    ...(imageDataUrl ? { imageDataUrl } : {}),
+                    imageWidth,
+                    imageHeight,
+                    ...imageFileMeta,
+                    analysis
+                  }
+                : undefined);
             onComplete(primitives, entrance, floorplan);
           }}
         >

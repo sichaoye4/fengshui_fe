@@ -61,7 +61,7 @@ export type AppAction =
   | { type: "set_editor_selected_id"; id: string | null }
   | { type: "set_editor_floorplan"; floorplan: FloorplanSource | undefined }
   | { type: "set_show_bagua_overlay"; value: boolean }
-  | { type: "set_room_label"; id: string; label: string }
+  | { type: "set_room_label"; id: string; label?: string; roomType?: RoomType }
   | { type: "set_room_type"; id: string; roomType: RoomType }
   | { type: "add_marker"; marker: MarkerPrimitive }
   | { type: "update_marker"; id: string; marker: Partial<Omit<MarkerPrimitive, "id" | "kind">> }
@@ -254,7 +254,11 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ...state.editor,
         primitives: state.editor.primitives.map((primitive) =>
           primitive.kind === "room" && primitive.id === action.id
-            ? { ...primitive, label: action.label || undefined }
+            ? {
+                ...primitive,
+                ...(action.label !== undefined ? { label: action.label || undefined } : {}),
+                ...(action.roomType !== undefined ? { roomType: action.roomType } : {})
+              }
             : primitive
         )
       });

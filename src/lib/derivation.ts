@@ -26,6 +26,21 @@ function sumRoomArea(rooms: RoomPrimitive[]): number {
   return rooms.reduce((total, room) => total + roomAreaM2(room), 0);
 }
 
+function roomCenter(room: RoomPrimitive): { x: number; y: number } {
+  const points = room.points && room.points.length >= 3 ? room.points : null;
+  if (points) {
+    return points.reduce(
+      (acc, point) => ({ x: acc.x + point.x / points.length, y: acc.y + point.y / points.length }),
+      { x: 0, y: 0 }
+    );
+  }
+
+  return {
+    x: room.x + room.width / 2,
+    y: room.y + room.height / 2
+  };
+}
+
 function deriveHouseArea(editor: EditorState, rooms: RoomPrimitive[]): number {
   const roomArea = sumRoomArea(rooms);
   if (roomArea > 0) {
@@ -68,6 +83,15 @@ function deriveCenterWallBlock(editor: EditorState, walls: SegmentPrimitive[], m
   return walls.some((wall) => pointInCenterZone(midpoint(wall), bounds));
 }
 
+function hasRoomTypeInCenter(editor: EditorState, rooms: RoomPrimitive[], roomType: RoomPrimitive["roomType"]): boolean {
+  const bounds = primitiveBounds(editor.primitives);
+  if (!bounds) {
+    return false;
+  }
+
+  return rooms.some((room) => room.roomType === roomType && pointInCenterZone(roomCenter(room), bounds));
+}
+
 function deriveWindowRatio(walls: SegmentPrimitive[], windows: SegmentPrimitive[]): number {
   const wallLength = walls.reduce((sum, item) => sum + segmentLengthM(item), 0);
   const windowLength = windows.reduce((sum, item) => sum + segmentLengthM(item), 0);
@@ -95,12 +119,14 @@ export function deriveProjectState(editor: EditorState, inputs: InputDraftState)
   const mingtangArea = mingtangAreaOverride ?? autoMingtangArea;
 
   const centerWallBlock = deriveCenterWallBlock(editor, walls, inputs.manual_flags.center_wall_block);
+  const toiletInCenter = inputs.manual_flags.toilet_in_center || hasRoomTypeInCenter(editor, rooms, "toilet");
+  const stairInCenter = inputs.manual_flags.stair_in_center || hasRoomTypeInCenter(editor, rooms, "stair");
   const roomDoorOpposedPairs = countDoorOpposedPairs(doors);
   const windowToSpaceRatio = deriveWindowRatio(walls, windows);
 
   const internalFlags: Record<string, boolean> = {
-    stair_in_center: inputs.manual_flags.stair_in_center,
-    toilet_in_center: inputs.manual_flags.toilet_in_center,
+    stair_in_center: stairInCenter,
+    toilet_in_center: toiletInCenter,
     toilet_in_qian: inputs.manual_flags.toilet_in_qian,
     toilet_in_wenchang: inputs.manual_flags.toilet_in_wenchang,
     mingtang_not_grounded: inputs.manual_flags.mingtang_not_grounded,
