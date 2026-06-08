@@ -47,3 +47,8 @@ frontend/dist/
 .claude
 
 test-results/*
+
+# Environment / agent config
+.env
+.env.local
+req_*.md
