@@ -3,6 +3,7 @@ import { Circle, Image, Layer, Group, Line, RegularPolygon, Stage, Text } from "
 import { DEFAULT_CANVAS_SIZE, MARKER_TYPES, PIXELS_PER_METER } from "../constants";
 import { getStoredToken } from "../api/auth";
 import {
+  analyzeFloorplanWithAi,
   annotationsFromPrimitives,
   floorplanSourceFromAsset,
   saveFloorplanAnnotations,
@@ -15,6 +16,8 @@ import { makeId } from "../lib/id";
 import { cvAnalysisToPrimitives, userWallsToEntrance } from "../lib/floorplan";
 import type {
   EditorState,
+  FloorplanAiLabelSuggestion,
+  FloorplanAiShaObservation,
   FloorplanAnalysis,
   FloorplanPhase,
   FloorplanSource,
@@ -36,6 +39,7 @@ interface Props {
   editor?: EditorState;
   selectedId?: string | null;
   highlightedPrimitiveId?: string | null;
+  matchedFormulaIds?: string[];
   onSelectPrimitive?: (id: string | null) => void;
   onViewportChange?: (viewport: ViewportState) => void;
   onAddMarker?: (marker: MarkerPrimitive) => void;
@@ -58,6 +62,10 @@ const ROOM_TYPE_COLORS: Record<RoomType, string> = {
   toilet: "#06b6d4",
   kitchen: "#f97316",
   stair: "#8b5cf6",
+  atrium: "#22d3ee",
+  void: "#f43f5e",
+  open_stairwell: "#a855f7",
+  skylight: "#38bdf8",
   hallway: "#eab308",
   storage: "#64748b",
   balcony: "#14b8a6"
@@ -77,6 +85,7 @@ const BAGUA_CELL_COLORS: Record<string, string> = {
 
 const MARKER_COLORS: Record<MarkerType, string> = {
   main_door: "#b45309",
+  back_door: "#92400e",
   room_door: "#d97706",
   toilet_door: "#0891b2",
   kitchen_door: "#ea580c",
@@ -84,11 +93,15 @@ const MARKER_COLORS: Record<MarkerType, string> = {
   toilet_fixture: "#06b6d4",
   stair: "#7c3aed",
   stove: "#dc2626",
-  entry_turn: "#16a34a"
+  entry_turn: "#16a34a",
+  open_center: "#e11d48",
+  skylight: "#0284c7",
+  open_stairwell: "#9333ea"
 };
 
 const MARKER_LABELS: Record<MarkerType, string> = {
   main_door: "M",
+  back_door: "B",
   room_door: "R",
   toilet_door: "T",
   kitchen_door: "K",
@@ -96,7 +109,10 @@ const MARKER_LABELS: Record<MarkerType, string> = {
   toilet_fixture: "WC",
   stair: "S",
   stove: "F",
-  entry_turn: "ET"
+  entry_turn: "ET",
+  open_center: "OC",
+  skylight: "SL",
+  open_stairwell: "OS"
 };
 
 function isMarkerToolValue(tool: Tool): tool is MarkerType {
@@ -157,12 +173,104 @@ function segmentStroke(segment: SegmentPrimitive): string {
   return "#1e293b";
 }
 
+function bboxToRoomPrimitive(suggestion: FloorplanAiLabelSuggestion): RoomPrimitive {
+  return {
+    id: makeId("ai-room"),
+    kind: "room",
+    x: +(suggestion.bbox.x / PIXELS_PER_METER).toFixed(4),
+    y: +(suggestion.bbox.y / PIXELS_PER_METER).toFixed(4),
+    width: +(suggestion.bbox.width / PIXELS_PER_METER).toFixed(4),
+    height: +(suggestion.bbox.height / PIXELS_PER_METER).toFixed(4),
+    label: suggestion.label,
+    roomType: suggestion.room_type
+  };
+}
+
+function suggestionRectPointsPx(suggestion: FloorplanAiLabelSuggestion): number[] {
+  const { x, y, width, height } = suggestion.bbox;
+  return [x, y, x + width, y, x + width, y + height, x, y + height];
+}
+
+function roomPoints(room: RoomPrimitive): PointM[] {
+  return room.points && room.points.length >= 3
+    ? room.points
+    : [
+        { x: room.x, y: room.y },
+        { x: room.x + room.width, y: room.y },
+        { x: room.x + room.width, y: room.y + room.height },
+        { x: room.x, y: room.y + room.height }
+      ];
+}
+
+function pointInPolygon(point: PointM, polygon: PointM[]): boolean {
+  let inside = false;
+  let previous = polygon[polygon.length - 1];
+  for (const current of polygon) {
+    const intersects =
+      current.y > point.y !== previous.y > point.y &&
+      point.x < ((previous.x - current.x) * (point.y - current.y)) / (previous.y - current.y || 1e-9) + current.x;
+    if (intersects) {
+      inside = !inside;
+    }
+    previous = current;
+  }
+  return inside;
+}
+
+function pointInAnyRoom(point: PointM, rooms: RoomPrimitive[]): boolean {
+  return rooms.some((room) => pointInPolygon(point, roomPoints(room)));
+}
+
+function segmentLength(segment: SegmentPrimitive): number {
+  const dx = segment.end.x - segment.start.x;
+  const dy = segment.end.y - segment.start.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function segmentMidpoint(segment: SegmentPrimitive): PointM {
+  return {
+    x: (segment.start.x + segment.end.x) / 2,
+    y: (segment.start.y + segment.end.y) / 2
+  };
+}
+
+function touchesOppositeExteriorSides(segment: SegmentPrimitive, bbox: BaguaBoundingBox): boolean {
+  const width = bbox.maxX - bbox.minX;
+  const height = bbox.maxY - bbox.minY;
+  if (width <= 0 || height <= 0) {
+    return false;
+  }
+  const tolerance = Math.max(0.2, Math.min(width, height) * 0.02);
+  const touchesLeft = Math.min(Math.abs(segment.start.x - bbox.minX), Math.abs(segment.end.x - bbox.minX)) <= tolerance;
+  const touchesRight = Math.min(Math.abs(segment.start.x - bbox.maxX), Math.abs(segment.end.x - bbox.maxX)) <= tolerance;
+  const touchesTop = Math.min(Math.abs(segment.start.y - bbox.minY), Math.abs(segment.end.y - bbox.minY)) <= tolerance;
+  const touchesBottom = Math.min(Math.abs(segment.start.y - bbox.maxY), Math.abs(segment.end.y - bbox.maxY)) <= tolerance;
+  return (touchesLeft && touchesRight && segmentLength(segment) >= width * 0.9) ||
+    (touchesTop && touchesBottom && segmentLength(segment) >= height * 0.9);
+}
+
+function centerOfBounds(bbox: BaguaBoundingBox): PointM {
+  return {
+    x: (bbox.minX + bbox.maxX) / 2,
+    y: (bbox.minY + bbox.maxY) / 2
+  };
+}
+
+function doorPoints(segments: SegmentPrimitive[], markers: MarkerPrimitive[], role: "main" | "back"): PointM[] {
+  const markerType = role === "main" ? "main_door" : "back_door";
+  return [
+    ...segments.filter((segment) => segment.kind === "door" && segment.role === role).map(segmentMidpoint),
+    ...markers.filter((marker) => marker.markerType === markerType).map((marker) => ({ x: marker.x, y: marker.y }))
+  ];
+}
+
 export function FloorplanEditor({
   language,
   tool,
   editor,
   selectedId = null,
   highlightedPrimitiveId = null,
+  matchedFormulaIds = [],
   onSelectPrimitive,
   onViewportChange,
   onAddMarker,
@@ -194,6 +302,10 @@ export function FloorplanEditor({
   const [entranceWallId, setEntranceWallId] = useState<string | null>(null);
   const [drawStart, setDrawStart] = useState<PointM | null>(null);
   const [drawCurrent, setDrawCurrent] = useState<PointM | null>(null);
+  const [aiSuggestions, setAiSuggestions] = useState<FloorplanAiLabelSuggestion[]>([]);
+  const [acceptedAiRooms, setAcceptedAiRooms] = useState<RoomPrimitive[]>([]);
+  const [aiShaObservations, setAiShaObservations] = useState<FloorplanAiShaObservation[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viewport, setViewport] = useState<ViewportState>({
@@ -227,6 +339,8 @@ export function FloorplanEditor({
   const isMarkerTool = isMarkerToolValue(tool);
   const isSegmentTool = isSegmentToolValue(tool);
   const isHighlighted = (id: string) => highlightedPrimitiveId === id;
+  const canRunAiAnalyze = Boolean(persistedFloorplan?.id && getStoredToken());
+  const matchedFormulaSet = useMemo(() => new Set(matchedFormulaIds), [matchedFormulaIds]);
 
   const baguaBBox = useMemo<BaguaBoundingBox | null>(() => {
     if (imageWidth > 0 && imageHeight > 0) {
@@ -240,10 +354,39 @@ export function FloorplanEditor({
     return editor?.primitives.length ? primitiveBounds(editor.primitives) : null;
   }, [editor?.primitives, imageHeight, imageWidth]);
 
-  const baguaCells = useMemo(
-    () => (editor?.showBaguaOverlay && baguaBBox ? getBaguaGrid(baguaBBox, editor.northAngleDeg) : []),
-    [baguaBBox, editor?.northAngleDeg, editor?.showBaguaOverlay]
+  const overlayBaguaCells = useMemo(
+    () => (baguaBBox && (editor?.showBaguaOverlay || matchedFormulaSet.has("INT-018")) ? getBaguaGrid(baguaBBox, editor?.northAngleDeg ?? 0) : []),
+    [baguaBBox, editor?.northAngleDeg, editor?.showBaguaOverlay, matchedFormulaSet]
   );
+  const missingCornerCells = useMemo(
+    () =>
+      matchedFormulaSet.has("INT-018")
+        ? overlayBaguaCells.filter(
+            (cell) =>
+              ["QIAN", "GEN", "KUN", "XUN"].includes(cell.palace) && !pointInAnyRoom(cell.center, savedRooms)
+          )
+        : [],
+    [matchedFormulaSet, overlayBaguaCells, savedRooms]
+  );
+  const taijiSplitSegment = useMemo(
+    () =>
+      matchedFormulaSet.has("INT-023") && baguaBBox
+        ? savedSegments.find((segment) => segment.kind === "wall" && touchesOppositeExteriorSides(segment, baguaBBox)) ?? null
+        : null,
+    [baguaBBox, matchedFormulaSet, savedSegments]
+  );
+  const qiPiercingLine = useMemo(() => {
+    if (!matchedFormulaSet.has("INT-021") || !baguaBBox) {
+      return null;
+    }
+    const main = doorPoints(savedSegments, savedMarkers, "main")[0];
+    const back = doorPoints(savedSegments, savedMarkers, "back")[0];
+    if (!main || !back) {
+      return null;
+    }
+    const center = centerOfBounds(baguaBBox);
+    return [main, center, back];
+  }, [baguaBBox, matchedFormulaSet, savedMarkers, savedSegments]);
 
   useEffect(() => {
     if (!editor?.floorplan && !editor?.primitives.length) {
@@ -425,6 +568,41 @@ export function FloorplanEditor({
     setError(null);
   };
 
+  const handleAiAnalyze = async () => {
+    if (!persistedFloorplan?.id) {
+      setError(t(language, "floorplan.aiNeedsSaved"));
+      return;
+    }
+    const token = getStoredToken();
+    if (!token) {
+      setError(t(language, "floorplan.aiNeedsAuth"));
+      return;
+    }
+
+    setAiLoading(true);
+    setError(null);
+    try {
+      const result = await analyzeFloorplanWithAi(persistedFloorplan.id, token);
+      setAiSuggestions(
+        result.suggested_labels.filter((suggestion) => suggestion.bbox.width > 0 && suggestion.bbox.height > 0)
+      );
+      setAiShaObservations(result.sha_observations);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t(language, "floorplan.aiError"));
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const acceptAiSuggestion = (suggestion: FloorplanAiLabelSuggestion) => {
+    setAcceptedAiRooms((prev) => [...prev, bboxToRoomPrimitive(suggestion)]);
+    setAiSuggestions((prev) => prev.filter((item) => item.id !== suggestion.id));
+  };
+
+  const rejectAiSuggestion = (suggestionId: string) => {
+    setAiSuggestions((prev) => prev.filter((item) => item.id !== suggestionId));
+  };
+
   const handleWheel = (
     event: import("konva/lib/Node").KonvaEventObject<WheelEvent>
   ) => {
@@ -501,6 +679,8 @@ export function FloorplanEditor({
       <div className="panel-header-inline">
         <h3>{t(language, "floorplan.title")}</h3>
       </div>
+
+      {error && <p className="error-text">{error}</p>}
 
       <div className="canvas-shell" data-testid="floorplan-editor">
         <Stage
@@ -698,6 +878,72 @@ export function FloorplanEditor({
                     listening={false}
                   />
                 ))}
+
+            {acceptedAiRooms.map((room) => {
+              const color = ROOM_TYPE_COLORS[room.roomType ?? "unknown"];
+              const labelPosition = roomLabelPositionPx(room);
+              return (
+                <Group key={room.id}>
+                  <Line
+                    data-testid={`room-polygon-${room.id}`}
+                    points={roomPolygonPointsPx(room)}
+                    fill={color}
+                    opacity={0.26}
+                    stroke={color}
+                    strokeWidth={1.5}
+                    closed
+                    onClick={(event) => {
+                      event.cancelBubble = true;
+                      if (tool === "select") {
+                        setSelectedWallId(null);
+                        onSelectPrimitive?.(room.id);
+                      }
+                    }}
+                  />
+                  <Text
+                    text={room.label || t(language, "floorplan.defaultRoom")}
+                    x={labelPosition.x - 38}
+                    y={labelPosition.y - 10}
+                    width={76}
+                    align="center"
+                    fontSize={12}
+                    fill="#0f172a"
+                    listening={false}
+                  />
+                </Group>
+              );
+            })}
+
+            {aiSuggestions.map((suggestion) => {
+              const color = ROOM_TYPE_COLORS[suggestion.room_type ?? "unknown"];
+              const x = suggestion.bbox.x + suggestion.bbox.width / 2 - 42;
+              const y = suggestion.bbox.y + suggestion.bbox.height / 2 - 9;
+              return (
+                <Group key={suggestion.id}>
+                  <Line
+                    data-testid={`ai-suggestion-${suggestion.id}`}
+                    points={suggestionRectPointsPx(suggestion)}
+                    fill={color}
+                    opacity={0.12}
+                    stroke={color}
+                    strokeWidth={2}
+                    dash={[8, 5]}
+                    closed
+                    listening={false}
+                  />
+                  <Text
+                    text={suggestion.label}
+                    x={x}
+                    y={y}
+                    width={84}
+                    align="center"
+                    fontSize={12}
+                    fill="#0f172a"
+                    listening={false}
+                  />
+                </Group>
+              );
+            })}
 
             {/* Layer 4 — CV and saved walls */}
             {shouldRenderSavedPrimitives
@@ -924,22 +1170,79 @@ export function FloorplanEditor({
               />
             )}
 
-            {baguaCells.length > 0 && (
+            {taijiSplitSegment && (
+              <Line
+                data-testid="taiji-split-overlay"
+                points={[
+                  metersToPixels(taijiSplitSegment.start.x),
+                  metersToPixels(taijiSplitSegment.start.y),
+                  metersToPixels(taijiSplitSegment.end.x),
+                  metersToPixels(taijiSplitSegment.end.y)
+                ]}
+                stroke="#dc2626"
+                strokeWidth={5}
+                dash={[14, 8]}
+                opacity={0.92}
+                listening={false}
+              />
+            )}
+
+            {qiPiercingLine && (
+              <Line
+                data-testid="qi-piercing-overlay"
+                points={qiPiercingLine.flatMap((point) => [metersToPixels(point.x), metersToPixels(point.y)])}
+                stroke="#dc2626"
+                strokeWidth={4}
+                dash={[10, 7]}
+                opacity={0.88}
+                listening={false}
+              />
+            )}
+
+            {overlayBaguaCells.length > 0 && (
               <Group data-testid="bagua-overlay">
-                {baguaCells.map((cell) => {
+                {overlayBaguaCells.map((cell) => {
                   const color = BAGUA_CELL_COLORS[cell.palace];
+                  const missingCorner = missingCornerCells.some((missing) => missing.palace === cell.palace);
                   return (
                     <Group key={cell.palace}>
                       <Line
                         data-testid={`bagua-cell-${cell.palace}`}
                         points={pointsPx(cell.points)}
-                        fill={color}
-                        opacity={0.14}
-                        stroke={color}
+                        fill={missingCorner ? "#dc2626" : color}
+                        opacity={missingCorner ? 0.24 : editor?.showBaguaOverlay ? 0.14 : 0}
+                        stroke={missingCorner ? "#dc2626" : color}
                         strokeWidth={2}
                         closed
                         listening={false}
                       />
+                      {missingCorner &&
+                        [0.2, 0.4, 0.6, 0.8].map((ratio) => {
+                          const left = {
+                            x: cell.points[0].x + (cell.points[3].x - cell.points[0].x) * ratio,
+                            y: cell.points[0].y + (cell.points[3].y - cell.points[0].y) * ratio
+                          };
+                          const right = {
+                            x: cell.points[1].x + (cell.points[2].x - cell.points[1].x) * ratio,
+                            y: cell.points[1].y + (cell.points[2].y - cell.points[1].y) * ratio
+                          };
+                          return (
+                            <Line
+                              key={`${cell.palace}-hatch-${ratio}`}
+                              data-testid={`missing-corner-hatch-${cell.palace}`}
+                              points={[
+                                metersToPixels(left.x),
+                                metersToPixels(left.y),
+                                metersToPixels(right.x),
+                                metersToPixels(right.y)
+                              ]}
+                              stroke="#b91c1c"
+                              strokeWidth={2}
+                              opacity={0.75}
+                              listening={false}
+                            />
+                          );
+                        })}
                       <Text
                         data-testid={`bagua-label-${cell.palace}`}
                         text={cell.label}
@@ -949,7 +1252,7 @@ export function FloorplanEditor({
                         align="center"
                         fontSize={13}
                         fontStyle="bold"
-                        fill="#0f172a"
+                        fill={editor?.showBaguaOverlay || missingCorner ? "#0f172a" : "transparent"}
                         listening={false}
                       />
                     </Group>
@@ -965,6 +1268,13 @@ export function FloorplanEditor({
       <div className="floorplan-actions">
         <button
           type="button"
+          disabled={!canRunAiAnalyze || aiLoading}
+          onClick={handleAiAnalyze}
+        >
+          {aiLoading ? t(language, "floorplan.aiAnalyzing") : t(language, "floorplan.aiAnalyze")}
+        </button>
+        <button
+          type="button"
           disabled={!selectedWallId}
           onClick={() => {
             if (selectedWallId) setEntranceWallId(selectedWallId);
@@ -978,7 +1288,7 @@ export function FloorplanEditor({
             const canvasWidthM = imageWidth / PIXELS_PER_METER;
             const canvasHeightM = imageHeight / PIXELS_PER_METER;
             const primitives = shouldRenderSavedPrimitives
-              ? [...(editor?.primitives ?? [])]
+              ? [...(editor?.primitives ?? []), ...acceptedAiRooms]
               : analysis
                 ? cvAnalysisToPrimitives(
                     analysis,
@@ -987,7 +1297,7 @@ export function FloorplanEditor({
                   )
                 : [];
             if (!shouldRenderSavedPrimitives) {
-              primitives.push(...savedMarkers, ...userSegments);
+              primitives.push(...acceptedAiRooms, ...savedMarkers, ...userSegments);
             }
             const entrance = shouldRenderSavedPrimitives
               ? editor?.entrance ?? null
@@ -1020,6 +1330,40 @@ export function FloorplanEditor({
           {t(language, "floorplan.complete")}
         </button>
       </div>
+
+      {(aiSuggestions.length > 0 || aiShaObservations.length > 0) && (
+        <div className="ai-suggestion-panel">
+          {aiSuggestions.length > 0 && (
+            <div className="ai-suggestion-list">
+              {aiSuggestions.map((suggestion) => (
+                <div className="ai-suggestion-row" key={suggestion.id}>
+                  <div>
+                    <strong>{suggestion.label}</strong>
+                    <span>{suggestion.room_type} · {Math.round(suggestion.confidence * 100)}%</span>
+                  </div>
+                  <div className="ai-suggestion-actions">
+                    <button type="button" onClick={() => acceptAiSuggestion(suggestion)}>
+                      {t(language, "floorplan.aiAccept")}
+                    </button>
+                    <button type="button" onClick={() => rejectAiSuggestion(suggestion.id)}>
+                      {t(language, "floorplan.aiReject")}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {aiShaObservations.length > 0 && (
+            <div className="ai-sha-list">
+              {aiShaObservations.map((observation) => (
+                <p key={observation.id}>
+                  <strong>{observation.severity.toUpperCase()}</strong> {observation.description}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }

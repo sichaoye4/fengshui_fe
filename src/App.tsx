@@ -64,6 +64,7 @@ import type {
   LiqiHouseResponse,
   ManualCategories,
   PeriodFourYunResponse,
+  RuleFinding,
   RoomPrimitive,
   RoomType,
   SegmentPrimitive,
@@ -82,6 +83,13 @@ const MANUAL_FLAG_LABELS: Record<ManualFlagKey, TranslationKey> = {
   rear_window_open_on_shengqi: "app.flag.rearWindowOpenOnShengqi",
   stair_corner_window_open: "app.flag.stairCornerWindowOpen",
   center_wall_block: "app.flag.centerWallBlock",
+  has_missing_corners: "app.flag.hasMissingCorners",
+  kitchen_in_center: "app.flag.kitchenInCenter",
+  open_center_leak: "app.flag.openCenterLeak",
+  qi_piercing: "app.flag.qiPiercing",
+  center_mass_split: "app.flag.centerMassSplit",
+  taiji_split: "app.flag.taijiSplit",
+  area_loss: "app.flag.areaLoss",
   room_toilet_door_opposed: "app.flag.roomToiletDoorOpposed",
   room_kitchen_door_opposed: "app.flag.roomKitchenDoorOpposed",
   toilet_kitchen_door_opposed: "app.flag.toiletKitchenDoorOpposed",
@@ -98,20 +106,24 @@ const PURE_SHAPE_FLAG_KEYS: ManualFlagKey[] = [
   "direct_chong",
   "shape_color_sha",
   "front_pair_gap_aligned",
-  "mingtang_not_grounded",
-  "rear_window_open_on_shengqi",
-  "stair_corner_window_open"
+  "mingtang_not_grounded"
 ];
 
 const STRUCTURAL_SHA_FLAG_KEYS: ManualFlagKey[] = [
   "stair_in_center",
   "toilet_in_center",
   "toilet_in_qian",
-  "toilet_in_wenchang",
-  "center_wall_block"
+  "center_wall_block",
+  "has_missing_corners",
+  "kitchen_in_center",
+  "open_center_leak",
+  "center_mass_split",
+  "taiji_split",
+  "area_loss"
 ];
 
 const CONFLICT_SHA_FLAG_KEYS: ManualFlagKey[] = [
+  "qi_piercing",
   "room_toilet_door_opposed",
   "room_kitchen_door_opposed",
   "toilet_kitchen_door_opposed",
@@ -276,10 +288,24 @@ export default function App(): JSX.Element {
     () => [...structureFindings, ...shapeFindings],
     [shapeFindings, structureFindings]
   );
+  const matchedStructureFormulaIds = useMemo(
+    () => combinedStructureFindings.filter((item) => item.status === "matched").map((item) => item.formula_id),
+    [combinedStructureFindings]
+  );
   const internalEvidenceByField = useMemo(() => {
     const map = new Map<string, InternalLayoutEvidenceItem>();
     for (const item of activeDerivation?.evidence ?? []) {
       map.set(item.field_path, item);
+    }
+    return map;
+  }, [activeDerivation]);
+  const relatedIdsByFormulaId = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const item of activeDerivation?.evidence ?? []) {
+      for (const formulaId of item.formula_ids) {
+        const existing = map.get(formulaId) ?? [];
+        map.set(formulaId, [...existing, ...item.related_ids]);
+      }
     }
     return map;
   }, [activeDerivation]);
@@ -459,6 +485,16 @@ export default function App(): JSX.Element {
       setHighlightedPrimitiveId(null);
       highlightTimerRef.current = null;
     }, 2200);
+  };
+
+  const handleHighlightFinding = (finding: RuleFinding) => {
+    if (finding.status !== "matched") {
+      return;
+    }
+    const relatedId = relatedIdsByFormulaId.get(finding.formula_id)?.[0];
+    if (relatedId) {
+      handleHighlightPrimitive(relatedId);
+    }
   };
 
   const runEvaluation = async () => {
@@ -1380,6 +1416,7 @@ export default function App(): JSX.Element {
                 editor={state.editor}
                 selectedId={state.editor.selectedId}
                 highlightedPrimitiveId={highlightedPrimitiveId}
+                matchedFormulaIds={matchedStructureFormulaIds}
                 onSelectPrimitive={(id) => dispatch({ type: "set_editor_selected_id", id })}
                 onViewportChange={(viewport) => dispatch({ type: "set_editor_viewport", viewport })}
                 onAddMarker={(marker) => dispatch({ type: "add_marker", marker })}
@@ -1420,6 +1457,7 @@ export default function App(): JSX.Element {
                       >
                         <option value="">{ui("doorRole.none")}</option>
                         <option value="main">{ui("doorRole.main")}</option>
+                        <option value="back">{ui("doorRole.back" as TranslationKey)}</option>
                         <option value="room">{ui("doorRole.room")}</option>
                         <option value="toilet">{ui("doorRole.toilet")}</option>
                         <option value="kitchen">{ui("doorRole.kitchen")}</option>
@@ -1667,6 +1705,7 @@ export default function App(): JSX.Element {
                 filter={state.tabFindingFilters.structure}
                 onFilterChange={(filter) => dispatch({ type: "set_tab_finding_filter", tab: "structure", filter })}
                 emptyKey="results.empty.structure"
+                onFindingClick={handleHighlightFinding}
                 showMitigationHighlights
               />
             </>

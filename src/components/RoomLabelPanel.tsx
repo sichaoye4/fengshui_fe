@@ -15,6 +15,10 @@ const ROOM_TYPE_LABELS: Record<RoomType, TranslationKey> = {
   toilet: "roomType.toilet",
   kitchen: "roomType.kitchen",
   stair: "roomType.stair",
+  atrium: "roomType.atrium",
+  void: "roomType.void",
+  open_stairwell: "roomType.openStairwell",
+  skylight: "roomType.skylight",
   hallway: "roomType.hallway",
   storage: "roomType.storage",
   balcony: "roomType.balcony"

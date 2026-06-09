@@ -1,5 +1,6 @@
 import { authHeaders, getStoredToken } from "./auth";
 import type {
+  FloorplanAiAnalysis,
   FloorplanAnalysis,
   InternalLayoutDerivationResponse,
   InternalLayoutManualOverrides,
@@ -127,6 +128,24 @@ export async function attachFloorplanToHouse(
     throw new Error(await parseError(response));
   }
   return (await response.json()) as FloorplanAssetResponse;
+}
+
+export async function analyzeFloorplanWithAi(
+  floorplanId: string,
+  token = getStoredToken() ?? ""
+): Promise<FloorplanAiAnalysis> {
+  const formData = new FormData();
+  formData.append("floorplan_id", floorplanId);
+
+  const response = await fetch("/api/v1/floorplan/ai-analyze", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: formData
+  });
+  if (!response.ok) {
+    throw new Error(await parseError(response));
+  }
+  return (await response.json()) as FloorplanAiAnalysis;
 }
 
 export async function deriveInternalLayout(

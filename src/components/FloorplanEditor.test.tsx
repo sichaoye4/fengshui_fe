@@ -52,6 +52,7 @@ vi.mock("konva", () => ({}));
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  window.localStorage.clear();
 });
 
 const defaultProps = {
@@ -363,5 +364,105 @@ describe("FloorplanEditor", () => {
 
     expect(screen.getByTestId("bagua-cell-KAN")).toBeInTheDocument();
     expect(screen.getByText("Kan")).toBeInTheDocument();
+  });
+
+  it("runs AI analysis for a saved floorplan and accepts a suggested room", async () => {
+    window.localStorage.setItem(
+      "fengshui_auth_v1",
+      JSON.stringify({
+        token: "access-token",
+        user: { id: "user-1", username: "owner", display_name: "", is_active: true, created_at: "", last_login_at: null }
+      })
+    );
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        provider: "dashscope",
+        model_name: "qwen3.5-plus",
+        width: 200,
+        height: 100,
+        rooms: [],
+        walls: [],
+        suggested_labels: [
+          {
+            id: "label-1",
+            room_id: "room-1",
+            label: "Bath",
+            room_type: "toilet",
+            confidence: 0.83,
+            bbox: { x: 20, y: 10, width: 80, height: 40 }
+          }
+        ],
+        sha_observations: [
+          {
+            id: "sha-1",
+            issue_type: "toilet_facing_door",
+            severity: "medium",
+            confidence: 0.5,
+            description: "Toilet may face a door",
+            related_room_ids: ["room-1"],
+            related_feature_ids: [],
+            suggested_action: ""
+          }
+        ],
+        usage: {}
+      })
+    } as Response);
+    const onComplete = vi.fn();
+
+    render(
+      <FloorplanEditor
+        language="en"
+        tool="select"
+        editor={{
+          gridSizeM: 0.1,
+          viewport: { x: 0, y: 0, scale: 1 },
+          northAngleDeg: 0,
+          entrance: null,
+          selectedId: null,
+          primitives: [],
+          floorplan: {
+            id: "floorplan-1",
+            imageUrl: "/api/v1/floorplans/floorplan-1/image",
+            storageKey: "aa/floorplan.png",
+            imageWidth: 200,
+            imageHeight: 100,
+            contentType: "image/png",
+            analysis: { width: 200, height: 100, walls: [], rooms: [] }
+          }
+        }}
+        onComplete={onComplete}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "AI Analyze" }));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/floorplan/ai-analyze",
+      expect.objectContaining({
+        method: "POST",
+        headers: { Authorization: "Bearer access-token" },
+        body: expect.any(FormData)
+      })
+    );
+    expect(await screen.findByTestId("ai-suggestion-label-1")).toBeInTheDocument();
+    expect(screen.getByText("Toilet may face a door")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Accept" }));
+    await userEvent.click(screen.getByRole("button", { name: "Complete" }));
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
+    const [primitives] = onComplete.mock.calls[0];
+    expect(primitives).toEqual([
+      expect.objectContaining({
+        kind: "room",
+        label: "Bath",
+        roomType: "toilet",
+        x: 0.2,
+        y: 0.1,
+        width: 0.8,
+        height: 0.4
+      })
+    ]);
   });
 });

@@ -14,13 +14,17 @@ export const DEFAULT_CANVAS_SIZE = { width: 960, height: 640 };
 export const TOOL_ORDER: BaseTool[] = ["select", "delete", "wall", "door", "window"];
 export const MARKER_TYPES: MarkerType[] = [
   "main_door",
+  "back_door",
   "room_door",
   "toilet_door",
   "kitchen_door",
   "toilet_fixture",
   "stair",
   "stove",
-  "entry_turn"
+  "entry_turn",
+  "open_center",
+  "skylight",
+  "open_stairwell"
 ];
 export const ROOM_TYPE_OPTIONS: RoomType[] = [
   "unknown",
@@ -29,6 +33,10 @@ export const ROOM_TYPE_OPTIONS: RoomType[] = [
   "toilet",
   "kitchen",
   "stair",
+  "atrium",
+  "void",
+  "open_stairwell",
+  "skylight",
   "hallway",
   "storage",
   "balcony"
@@ -157,6 +165,13 @@ export function createDefaultInputState(): InputDraftState {
       rear_window_open_on_shengqi: false,
       stair_corner_window_open: false,
       center_wall_block: false,
+      has_missing_corners: false,
+      kitchen_in_center: false,
+      open_center_leak: false,
+      qi_piercing: false,
+      center_mass_split: false,
+      taiji_split: false,
+      area_loss: false,
       room_toilet_door_opposed: false,
       room_kitchen_door_opposed: false,
       toilet_kitchen_door_opposed: false,

@@ -8,6 +8,7 @@ interface Props {
   filter: FindingFilter;
   onFilterChange: (filter: FindingFilter) => void;
   emptyKey: TranslationKey;
+  onFindingClick?: (finding: RuleFinding) => void;
   showMitigationHighlights?: boolean;
 }
 
@@ -15,6 +16,9 @@ function severityClass(severity: string): string {
   const normalized = severity.toLowerCase();
   if (normalized === "high") {
     return "sev-high";
+  }
+  if (normalized === "medium_high" || normalized === "medium-high") {
+    return "sev-medium-high";
   }
   if (normalized === "medium") {
     return "sev-medium";
@@ -45,6 +49,7 @@ export function ResultsPanel({
   filter,
   onFilterChange,
   emptyKey,
+  onFindingClick,
   showMitigationHighlights = false
 }: Props): JSX.Element {
   const visibleFindings =
@@ -121,8 +126,25 @@ export function ResultsPanel({
                 </tr>
               </thead>
               <tbody>
-                {visibleFindings.map((item) => (
-                  <tr key={item.formula_id}>
+                {visibleFindings.map((item) => {
+                  const canHighlight = item.status === "matched" && Boolean(onFindingClick);
+                  return (
+                  <tr
+                    key={item.formula_id}
+                    className={canHighlight ? "clickable-finding-row" : undefined}
+                    tabIndex={canHighlight ? 0 : undefined}
+                    onClick={() => {
+                      if (canHighlight) {
+                        onFindingClick?.(item);
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if (canHighlight && (event.key === "Enter" || event.key === " ")) {
+                        event.preventDefault();
+                        onFindingClick?.(item);
+                      }
+                    }}
+                  >
                     <td>{item.formula_id}</td>
                     <td>{language === "en" ? item.title_en : item.title_zh}</td>
                     <td>{t(language, STATUS_KEYS[item.status])}</td>
@@ -131,7 +153,8 @@ export function ResultsPanel({
                     </td>
                     <td>{language === "en" ? item.message_en : item.message_zh}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

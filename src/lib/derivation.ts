@@ -1,4 +1,4 @@
-import type { DerivedState, EditorState, InputDraftState, RoomPrimitive, SegmentPrimitive } from "../types/fengshui";
+import type { DerivedState, EditorState, InputDraftState, MarkerPrimitive, PointM, RoomPrimitive, SegmentPrimitive } from "../types/fengshui";
 import { polygonToPalaces, type BaguaPalace } from "./baguaGeometry";
 import {
   countDoorOpposedPairs,
@@ -88,6 +88,51 @@ function deriveCenterWallBlock(editor: EditorState, walls: SegmentPrimitive[], m
   return walls.some((wall) => pointInCenterZone(midpoint(wall), bounds));
 }
 
+function touchesOppositeExteriorSides(segment: SegmentPrimitive, bounds: { minX: number; minY: number; maxX: number; maxY: number }): boolean {
+  const width = bounds.maxX - bounds.minX;
+  const height = bounds.maxY - bounds.minY;
+  const tolerance = Math.max(0.2, Math.min(width, height) * 0.02);
+  const touchesLeft = Math.min(Math.abs(segment.start.x - bounds.minX), Math.abs(segment.end.x - bounds.minX)) <= tolerance;
+  const touchesRight = Math.min(Math.abs(segment.start.x - bounds.maxX), Math.abs(segment.end.x - bounds.maxX)) <= tolerance;
+  const touchesTop = Math.min(Math.abs(segment.start.y - bounds.minY), Math.abs(segment.end.y - bounds.minY)) <= tolerance;
+  const touchesBottom = Math.min(Math.abs(segment.start.y - bounds.maxY), Math.abs(segment.end.y - bounds.maxY)) <= tolerance;
+
+  return (touchesLeft && touchesRight && segmentLengthM(segment) >= width * 0.9) ||
+    (touchesTop && touchesBottom && segmentLengthM(segment) >= height * 0.9);
+}
+
+function doorReferencePoints(doors: SegmentPrimitive[], markers: MarkerPrimitive[], role: "main" | "back"): PointM[] {
+  const markerType = role === "main" ? "main_door" : "back_door";
+  return [
+    ...doors.filter((door) => door.role === role).map(midpoint),
+    ...markers.filter((marker) => marker.markerType === markerType).map((marker) => ({ x: marker.x, y: marker.y }))
+  ];
+}
+
+function deriveQiPiercing(editor: EditorState, doors: SegmentPrimitive[], markers: MarkerPrimitive[]): boolean {
+  const bounds = primitiveBounds(editor.primitives);
+  if (!bounds) {
+    return false;
+  }
+  const center = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
+  for (const main of doorReferencePoints(doors, markers, "main")) {
+    for (const back of doorReferencePoints(doors, markers, "back")) {
+      const v1 = { x: main.x - center.x, y: main.y - center.y };
+      const v2 = { x: back.x - center.x, y: back.y - center.y };
+      const len1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
+      const len2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
+      if (len1 <= 0 || len2 <= 0) {
+        continue;
+      }
+      const cosine = Math.max(-1, Math.min(1, (v1.x * v2.x + v1.y * v2.y) / (len1 * len2)));
+      if ((Math.acos(cosine) * 180) / Math.PI >= 165) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function hasRoomTypeInPalace(
   editor: EditorState,
   rooms: RoomPrimitive[],
@@ -126,6 +171,7 @@ export function deriveProjectState(editor: EditorState, inputs: InputDraftState)
   const walls = editor.primitives.filter((item): item is SegmentPrimitive => item.kind === "wall");
   const doors = editor.primitives.filter((item): item is SegmentPrimitive => item.kind === "door");
   const windows = editor.primitives.filter((item): item is SegmentPrimitive => item.kind === "window");
+  const markers = editor.primitives.filter((item): item is MarkerPrimitive => item.kind === "marker");
 
   const autoHouseArea = deriveHouseArea(editor, rooms);
   const autoMingtangArea = deriveMingtangArea(inputs, rooms, autoHouseArea);
@@ -140,6 +186,27 @@ export function deriveProjectState(editor: EditorState, inputs: InputDraftState)
   const toiletInCenter = inputs.manual_flags.toilet_in_center || hasRoomTypeInPalace(editor, rooms, "toilet", "CENTER");
   const stairInCenter = inputs.manual_flags.stair_in_center || hasRoomTypeInPalace(editor, rooms, "stair", "CENTER");
   const toiletInQian = inputs.manual_flags.toilet_in_qian || hasRoomTypeInPalace(editor, rooms, "toilet", "QIAN");
+  const kitchenInCenter =
+    inputs.manual_flags.kitchen_in_center ||
+    hasRoomTypeInPalace(editor, rooms, "kitchen", "CENTER") ||
+    markers.some((marker) => marker.markerType === "stove" && primitiveBounds(editor.primitives) && pointInCenterZone(marker, primitiveBounds(editor.primitives)!));
+  const openCenterLeak =
+    inputs.manual_flags.open_center_leak ||
+    ["atrium", "void", "open_stairwell", "skylight"].some((roomType) =>
+      hasRoomTypeInPalace(editor, rooms, roomType as RoomPrimitive["roomType"], "CENTER")
+    ) ||
+    markers.some((marker) => ["open_center", "skylight", "open_stairwell"].includes(marker.markerType) && primitiveBounds(editor.primitives) && pointInCenterZone(marker, primitiveBounds(editor.primitives)!));
+  const bounds = primitiveBounds(editor.primitives);
+  const bboxArea = bounds ? Math.max(0, (bounds.maxX - bounds.minX) * (bounds.maxY - bounds.minY)) : 0;
+  const hasMissingCorners = inputs.manual_flags.has_missing_corners || (bboxArea > 0 && autoHouseArea / bboxArea < 0.95);
+  const areaLoss = inputs.manual_flags.area_loss || (bboxArea > 0 && autoHouseArea / bboxArea < 0.6);
+  const centerMassSplit =
+    inputs.manual_flags.center_mass_split ||
+    (bounds ? walls.some((wall) => pointInCenterZone(midpoint(wall), bounds) && segmentLengthM(wall) >= 1.8) : false);
+  const taijiSplit =
+    inputs.manual_flags.taiji_split ||
+    (bounds ? walls.some((wall) => touchesOppositeExteriorSides(wall, bounds) && pointInCenterZone(midpoint(wall), bounds)) : false);
+  const qiPiercing = inputs.manual_flags.qi_piercing || deriveQiPiercing(editor, doors, markers);
   const roomDoorOpposedPairs = countDoorOpposedPairs(doors);
   const windowToSpaceRatio = deriveWindowRatio(walls, windows);
   const roomToiletDoorOpposed = hasOpposedDoorRoles(doors, "room", "toilet");
@@ -158,6 +225,13 @@ export function deriveProjectState(editor: EditorState, inputs: InputDraftState)
     rear_window_open_on_shengqi: inputs.manual_flags.rear_window_open_on_shengqi,
     stair_corner_window_open: inputs.manual_flags.stair_corner_window_open,
     center_wall_block: centerWallBlock,
+    has_missing_corners: hasMissingCorners,
+    kitchen_in_center: kitchenInCenter,
+    open_center_leak: openCenterLeak,
+    qi_piercing: qiPiercing,
+    center_mass_split: centerMassSplit,
+    taiji_split: taijiSplit,
+    area_loss: areaLoss,
     room_toilet_door_opposed: inputs.manual_flags.room_toilet_door_opposed || roomToiletDoorOpposed,
     room_kitchen_door_opposed: inputs.manual_flags.room_kitchen_door_opposed || roomKitchenDoorOpposed,
     toilet_kitchen_door_opposed: inputs.manual_flags.toilet_kitchen_door_opposed || toiletKitchenDoorOpposed,

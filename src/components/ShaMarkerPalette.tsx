@@ -10,6 +10,7 @@ interface Props {
 
 const MARKER_LABEL_KEYS: Record<MarkerType, TranslationKey> = {
   main_door: "marker.mainDoor",
+  back_door: "marker.backDoor",
   room_door: "marker.roomDoor",
   toilet_door: "marker.toiletDoor",
   kitchen_door: "marker.kitchenDoor",
@@ -17,11 +18,15 @@ const MARKER_LABEL_KEYS: Record<MarkerType, TranslationKey> = {
   toilet_fixture: "marker.toiletFixture",
   stair: "marker.stair",
   stove: "marker.stove",
-  entry_turn: "marker.entryTurn"
+  entry_turn: "marker.entryTurn",
+  open_center: "marker.openCenter",
+  skylight: "marker.skylight",
+  open_stairwell: "marker.openStairwell"
 };
 
 const MARKER_ICONS: Record<MarkerType, string> = {
   main_door: "M",
+  back_door: "B",
   room_door: "R",
   toilet_door: "T",
   kitchen_door: "K",
@@ -29,7 +34,10 @@ const MARKER_ICONS: Record<MarkerType, string> = {
   toilet_fixture: "WC",
   stair: "S",
   stove: "F",
-  entry_turn: "ET"
+  entry_turn: "ET",
+  open_center: "OC",
+  skylight: "SL",
+  open_stairwell: "OS"
 };
 
 export function ShaMarkerPalette({ tool, language, onToolChange }: Props): JSX.Element {

@@ -9,6 +9,63 @@ export interface FloorplanAnalysis {
   rooms: Array<Array<[number, number]>>;
 }
 
+export interface FloorplanAiBoundingBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface FloorplanAiRoom {
+  id: string;
+  room_type: RoomType;
+  label: string;
+  location: string;
+  confidence: number;
+  bbox: FloorplanAiBoundingBox;
+}
+
+export interface FloorplanAiWall {
+  id: string;
+  kind: "wall" | "door" | "window" | "stair";
+  label: string;
+  confidence: number;
+  start: { x: number; y: number };
+  end: { x: number; y: number };
+}
+
+export interface FloorplanAiLabelSuggestion {
+  id: string;
+  room_id?: string | null;
+  label: string;
+  room_type: RoomType;
+  confidence: number;
+  bbox: FloorplanAiBoundingBox;
+}
+
+export interface FloorplanAiShaObservation {
+  id: string;
+  issue_type: string;
+  severity: "low" | "medium" | "high";
+  confidence: number;
+  description: string;
+  related_room_ids: string[];
+  related_feature_ids: string[];
+  suggested_action: string;
+}
+
+export interface FloorplanAiAnalysis {
+  provider: string;
+  model_name: string;
+  width: number;
+  height: number;
+  rooms: FloorplanAiRoom[];
+  walls: FloorplanAiWall[];
+  suggested_labels: FloorplanAiLabelSuggestion[];
+  sha_observations: FloorplanAiShaObservation[];
+  usage: Record<string, unknown>;
+}
+
 export type BaseTool = "select" | "delete" | "wall" | "door" | "window";
 export type Tool = BaseTool | MarkerType;
 export type AnalysisTab = "house_liqi" | "temporal" | "zhai_yun" | "structure" | "static_house" | "dongzhai";
@@ -56,6 +113,10 @@ export type RoomType =
   | "toilet"
   | "kitchen"
   | "stair"
+  | "atrium"
+  | "void"
+  | "open_stairwell"
+  | "skylight"
   | "hallway"
   | "storage"
   | "balcony"
@@ -63,6 +124,7 @@ export type RoomType =
 
 export type MarkerType =
   | "main_door"
+  | "back_door"
   | "room_door"
   | "toilet_door"
   | "kitchen_door"
@@ -70,9 +132,12 @@ export type MarkerType =
   | "toilet_fixture"
   | "stair"
   | "stove"
-  | "entry_turn";
+  | "entry_turn"
+  | "open_center"
+  | "skylight"
+  | "open_stairwell";
 
-export type DoorRole = "main" | "room" | "toilet" | "kitchen";
+export type DoorRole = "main" | "back" | "room" | "toilet" | "kitchen";
 
 export interface ViewportState {
   x: number;
@@ -135,6 +200,13 @@ export interface ManualFlags {
   rear_window_open_on_shengqi: boolean;
   stair_corner_window_open: boolean;
   center_wall_block: boolean;
+  has_missing_corners: boolean;
+  kitchen_in_center: boolean;
+  open_center_leak: boolean;
+  qi_piercing: boolean;
+  center_mass_split: boolean;
+  taiji_split: boolean;
+  area_loss: boolean;
   room_toilet_door_opposed: boolean;
   room_kitchen_door_opposed: boolean;
   toilet_kitchen_door_opposed: boolean;
