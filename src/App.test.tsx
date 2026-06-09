@@ -631,5 +631,22 @@ describe("App tabbed workflow", () => {
     expect(screen.getByText("Mitigation Context Inputs")).toBeInTheDocument();
     expect(screen.getByText("Element Strength Context")).toBeInTheDocument();
   });
+
+  it("keeps indoor sha checkbox labels clean when showing origin status", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("tab", { name: /Plan \+ Indoor Sha/ }));
+
+    const toiletInCenter = screen.getByLabelText("Toilet in center");
+    await user.click(toiletInCenter);
+
+    const row = toiletInCenter.closest(".flag-origin-row");
+    expect(row).not.toBeNull();
+    expect(row).toHaveTextContent(/^Toilet in center$/);
+    expect(within(row as HTMLElement).getByTitle("manual")).toBeInTheDocument();
+    expect(screen.getByLabelText("Toilet in center")).toBe(toiletInCenter);
+    expect(screen.queryByLabelText("Toilet in center manual")).not.toBeInTheDocument();
+  });
 });
 

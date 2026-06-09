@@ -634,6 +634,41 @@ textarea {
   margin: 0;
 }
 
+.checkbox-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.checkbox-control span {
+  min-width: 0;
+}
+
+.flag-origin-row {
+  justify-content: space-between;
+}
+
+.origin-status-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 1px 3px rgba(28, 40, 47, 0.24);
+}
+
+.origin-status-manual {
+  background: #d9941f;
+}
+
+.origin-status-derived {
+  background: #3f8f57;
+}
+
+.origin-status-needs-input {
+  background: #8d9aa3;
+}
+
 .external-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));

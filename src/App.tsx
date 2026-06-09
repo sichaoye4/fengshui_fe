@@ -662,24 +662,31 @@ export default function App(): JSX.Element {
         {keys.map((key) => {
           const evidence = internalEvidenceByField.get(`flags.${key}`);
           const isManual = state.inputs.manual_flags[key];
-          const isAutoDerived =
-            !isManual &&
-            Boolean(evidence && isAutoEvidenceSource(evidence.source) && derivedForUi.internal_layout.flags[key] === true);
+          const isAutoDerived = !isManual && Boolean(evidence && isAutoEvidenceSource(evidence.source));
           const needsManual = !isManual && evidence?.source === "not_provided";
+          const originStatus = isManual ? "manual" : isAutoDerived ? "derived" : needsManual ? "needs-input" : null;
+          const originTitle =
+            originStatus === "manual" ? "manual" : originStatus === "derived" ? "derived" : "needs input";
           return (
-            <label key={key} className={`checkbox-item flag-origin-row ${isManual ? "manual-set" : ""}`}>
-              <input
-                type="checkbox"
-                checked={state.inputs.manual_flags[key]}
-                onChange={(event) => {
-                  dispatch({ type: "set_manual_flag", key, value: event.currentTarget.checked });
-                }}
-              />
-              <span>{ui(MANUAL_FLAG_LABELS[key])}</span>
-              {isManual && <span className="origin-pill manual">manual</span>}
-              {isAutoDerived && <span className="origin-pill auto">auto</span>}
-              {needsManual && <span className="origin-pill needed">manual input</span>}
-            </label>
+            <div key={key} className={`checkbox-item flag-origin-row ${isManual ? "manual-set" : ""}`}>
+              <label className="checkbox-control">
+                <input
+                  type="checkbox"
+                  checked={state.inputs.manual_flags[key]}
+                  onChange={(event) => {
+                    dispatch({ type: "set_manual_flag", key, value: event.currentTarget.checked });
+                  }}
+                />
+                <span>{ui(MANUAL_FLAG_LABELS[key])}</span>
+              </label>
+              {originStatus && (
+                <span
+                  aria-hidden="true"
+                  className={`origin-status-dot origin-status-${originStatus}`}
+                  title={originTitle}
+                />
+              )}
+            </div>
           );
         })}
       </div>
