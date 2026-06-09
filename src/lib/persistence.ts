@@ -166,7 +166,10 @@ function sanitizeFloorplan(value: unknown): FloorplanSource | undefined {
 
   const analysis = sanitizeFloorplanAnalysis(source.analysis);
   return {
+    ...(typeof source.id === "string" ? { id: source.id } : {}),
     ...(typeof source.imageDataUrl === "string" ? { imageDataUrl: source.imageDataUrl } : {}),
+    ...(typeof source.imageUrl === "string" ? { imageUrl: source.imageUrl } : {}),
+    ...(typeof source.storageKey === "string" ? { storageKey: source.storageKey } : {}),
     imageWidth,
     imageHeight,
     ...(typeof source.imageName === "string" ? { imageName: source.imageName } : {}),

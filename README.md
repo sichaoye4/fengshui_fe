@@ -154,6 +154,8 @@ The top analysis tabs use short visible labels and full ARIA labels; data-heavy 
 
 - `src/api/client.ts`
   - main evaluate + Bazhai requests
+- `src/api/floorplans.ts`
+  - authenticated floorplan upload, annotation save, house attachment, and image hydration
 - `src/api/temporal.ts`
   - temporal, flying-star, Liqi, and period requests
 - `src/lib/payload.ts`
@@ -229,6 +231,7 @@ Wire field names in payload builders must match the backend contract. The UI fie
 Read first:
 
 - `src/api/client.ts` or `src/api/temporal.ts`
+- `src/api/floorplans.ts` for persisted floorplan upload/load
 - `src/lib/payload.ts`
 - [../fengshui/docs/backend_api_contract.md](../fengshui/docs/backend_api_contract.md) 鈥?wire field inventory
 

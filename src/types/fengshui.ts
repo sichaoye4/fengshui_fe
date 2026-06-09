@@ -115,7 +115,10 @@ export interface MarkerPrimitive {
 export type Primitive = SegmentPrimitive | RoomPrimitive | MarkerPrimitive;
 
 export interface FloorplanSource {
+  id?: string;
   imageDataUrl?: string;
+  imageUrl?: string;
+  storageKey?: string;
   imageWidth: number;
   imageHeight: number;
   imageName?: string;
@@ -232,6 +235,35 @@ export interface DerivedState {
   };
   measurements: Record<string, number>;
   flags: Record<string, boolean>;
+}
+
+export interface InternalLayoutManualOverrides {
+  flags: Record<string, boolean>;
+  measurements: Record<string, number>;
+  counts: Record<string, number>;
+}
+
+export type InternalLayoutEvidenceSource =
+  | "geometry"
+  | "room_label"
+  | "marker"
+  | "manual_override"
+  | "not_provided";
+
+export type InternalLayoutEvidenceConfidence = "high" | "medium" | "low";
+
+export interface InternalLayoutEvidenceItem {
+  field_path: string;
+  source: InternalLayoutEvidenceSource;
+  confidence: InternalLayoutEvidenceConfidence;
+  explanation: string;
+  related_ids: string[];
+  formula_ids: string[];
+}
+
+export interface InternalLayoutDerivationResponse {
+  internal_layout: DerivedState["internal_layout"];
+  evidence: InternalLayoutEvidenceItem[];
 }
 
 export interface RuleFinding {
@@ -596,6 +628,7 @@ export interface EvaluationSnapshot {
   payload_hash: string;
   request: RuleEvaluateRequest;
   response: RuleEvaluationResponse;
+  derivation?: InternalLayoutDerivationResponse | null;
   bazhai_results: HouseholdBazhaiResponse | null;
   dongzhai_result: DongzhaiFloorEvaluateResponse | null;
   jingzhai_result: JingzhaiFullResponse | null;

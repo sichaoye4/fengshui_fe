@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState, type ChangeEvent } from "react";
 import {
   BAGUA_OPTIONS,
   DIRECTION24_OPTIONS,
@@ -9,8 +9,17 @@ import {
   STRENGTH_OPTIONS
 } from "./constants";
 import { evaluateDongzhaiFloor, evaluateHouseholdBazhai, evaluateJingzhaiFull, evaluateRules } from "./api/client";
+import {
+  annotationsFromPrimitives,
+  attachFloorplanToHouse,
+  deriveInternalLayout,
+  fetchFloorplanImageDataUrl,
+  floorplanSourceFromAsset,
+  primitivesFromAnnotations
+} from "./api/floorplans";
 import { fetchAnnualFlyingStar, fetchAnnualTemporal, fetchFourYunProfile, fetchGregorianConversion, fetchLiqiHouseProfile, fetchMonthlyTemporal } from "./api/temporal";
 import { DongzhaiPanel } from "./components/DongzhaiPanel";
+import { EvidencePanel } from "./components/EvidencePanel";
 import { ExternalShaChecklist } from "./components/ExternalShaChecklist";
 import { FloorplanEditor } from "./components/FloorplanEditor";
 import { HouseLiqiWorkspace } from "./components/HouseLiqiWorkspace";
@@ -29,10 +38,12 @@ import {
   createDongzhaiFloorRequest,
   createHouseholdBazhaiRequest,
   createEvaluationRequest,
+  createInternalLayoutManualOverrides,
   createJingzhaiFullRequest,
   getBazhaiMissingFields,
   getDongzhaiMissingFields,
-  hashPayload
+  hashPayload,
+  mergeDerivedInternalLayout
 } from "./lib/payload";
 import { exportProject, importProject, loadDraft, saveDraft } from "./lib/persistence";
 import { calculateBaziDate, calculateYearPillarFromBirthYear } from "./lib/bazi";
@@ -47,6 +58,8 @@ import type {
   HouseholdMemberInput,
   HouseMetaInput,
   InputDraftState,
+  InternalLayoutDerivationResponse,
+  InternalLayoutEvidenceItem,
   Language,
   LiqiHouseResponse,
   ManualCategories,
@@ -154,6 +167,10 @@ function renderCalculatedValue(value: string | number | null | undefined): strin
   return normalized === "" ? "—" : normalized;
 }
 
+function isAutoEvidenceSource(source: InternalLayoutEvidenceItem["source"]): boolean {
+  return source === "geometry" || source === "room_label" || source === "marker";
+}
+
 function calculateOwnerAgeFromBirthYear(birthYearRaw: string, referenceDate: string): string {
   const birthYear = Number(birthYearRaw.trim());
   if (!Number.isInteger(birthYear) || birthYear <= 0) {
@@ -196,8 +213,18 @@ export default function App(): JSX.Element {
   const [authUser, setAuthUser] = useState<UserPublic | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [latestDerivation, setLatestDerivation] = useState<InternalLayoutDerivationResponse | null>(
+    state.evaluation?.derivation ?? null
+  );
+  const [highlightedPrimitiveId, setHighlightedPrimitiveId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<number | null>(null);
 
   const derived = useMemo(() => deriveProjectState(state.editor, state.inputs), [state.editor, state.inputs]);
+  const activeDerivation = latestDerivation ?? state.evaluation?.derivation ?? null;
+  const derivedForUi = useMemo(
+    () => mergeDerivedInternalLayout(derived, state.inputs, activeDerivation),
+    [activeDerivation, derived, state.inputs]
+  );
   const rooms = useMemo(
     () => state.editor.primitives.filter((item): item is RoomPrimitive => item.kind === "room"),
     [state.editor.primitives]
@@ -249,6 +276,34 @@ export default function App(): JSX.Element {
     () => [...structureFindings, ...shapeFindings],
     [shapeFindings, structureFindings]
   );
+  const internalEvidenceByField = useMemo(() => {
+    const map = new Map<string, InternalLayoutEvidenceItem>();
+    for (const item of activeDerivation?.evidence ?? []) {
+      map.set(item.field_path, item);
+    }
+    return map;
+  }, [activeDerivation]);
+  const derivationSummary = useMemo(() => {
+    const internalFlagKeys = STRUCTURAL_SHA_FLAG_KEYS.concat(CONFLICT_SHA_FLAG_KEYS).filter(
+      (key) => key !== "mingtang_not_grounded" && key !== "rear_window_open_on_shengqi" && key !== "stair_corner_window_open"
+    );
+    const derivedFromPlan = internalFlagKeys.filter((key) => {
+      const evidence = internalEvidenceByField.get(`flags.${key}`);
+      return Boolean(
+        evidence &&
+          isAutoEvidenceSource(evidence.source) &&
+          derivedForUi.internal_layout.flags[key] === true &&
+          !state.inputs.manual_flags[key]
+      );
+    }).length;
+    const manualInputNeeded = internalFlagKeys.filter((key) => {
+      const evidence = internalEvidenceByField.get(`flags.${key}`);
+      return !state.inputs.manual_flags[key] && evidence?.source === "not_provided";
+    }).length;
+    const manualOverrides = internalFlagKeys.filter((key) => state.inputs.manual_flags[key]).length;
+
+    return { derivedFromPlan, manualInputNeeded, manualOverrides };
+  }, [derivedForUi.internal_layout.flags, internalEvidenceByField, state.inputs.manual_flags]);
 
   useEffect(() => {
     if (state.analysisMode === "jingzhai" && state.activeTab === "dongzhai") {
@@ -257,6 +312,20 @@ export default function App(): JSX.Element {
       dispatch({ type: "set_active_tab", tab: "dongzhai" });
     }
   }, [state.analysisMode, state.activeTab]);
+
+  useEffect(() => {
+    if (state.evaluation?.derivation) {
+      setLatestDerivation(state.evaluation.derivation);
+    }
+  }, [state.evaluation?.derivation]);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current !== null) {
+        window.clearTimeout(highlightTimerRef.current);
+      }
+    };
+  }, []);
 
   const visibleTabs = useMemo(
     () =>
@@ -315,7 +384,7 @@ export default function App(): JSX.Element {
     if (stored) {
       setAuthUser(stored.user);
       setAuthToken(stored.token);
-      getLatestSession(stored.token).then((session) => {
+      getLatestSession(stored.token).then(async (session) => {
         if (session) {
           const hp = session.house_profile;
           dispatch({ type: "set_house_field", field: "name", value: (hp.name as string) ?? "" });
@@ -346,18 +415,60 @@ export default function App(): JSX.Element {
               });
             });
           }
+          if (session.floorplan) {
+            const imageDataUrl = await fetchFloorplanImageDataUrl(session.floorplan, stored.token).catch(() => undefined);
+            dispatch({
+              type: "commit_editor",
+              editor: {
+                ...state.editor,
+                floorplan: floorplanSourceFromAsset(session.floorplan, imageDataUrl),
+                primitives: primitivesFromAnnotations(session.floorplan),
+                entrance: null,
+                northAngleDeg: session.floorplan.annotations.northAngleDeg ?? state.editor.northAngleDeg
+              }
+            });
+          }
         }
       }).catch(() => {});
     }
     setAuthReady(true);
   }, []);
 
+  const fetchInternalLayoutDerivation = async (
+    editorSnapshot = state.editor,
+    inputsSnapshot = state.inputs
+  ): Promise<InternalLayoutDerivationResponse> => {
+    const response = await deriveInternalLayout(
+      annotationsFromPrimitives(
+        editorSnapshot.primitives,
+        editorSnapshot.northAngleDeg,
+        createInternalLayoutManualOverrides(inputsSnapshot)
+      )
+    );
+    setLatestDerivation(response);
+    return response;
+  };
+
+  const handleHighlightPrimitive = (id: string) => {
+    if (highlightTimerRef.current !== null) {
+      window.clearTimeout(highlightTimerRef.current);
+    }
+    dispatch({ type: "set_editor_selected_id", id });
+    setHighlightedPrimitiveId(id);
+    highlightTimerRef.current = window.setTimeout(() => {
+      setHighlightedPrimitiveId(null);
+      highlightTimerRef.current = null;
+    }, 2200);
+  };
+
   const runEvaluation = async () => {
     dispatch({ type: "set_loading", value: true });
     dispatch({ type: "clear_error" });
 
     try {
-      const payload = createEvaluationRequest(state.editor, state.inputs, derived);
+      const derivationResult = await fetchInternalLayoutDerivation();
+      const mergedDerived = mergeDerivedInternalLayout(derived, state.inputs, derivationResult);
+      const payload = createEvaluationRequest(state.editor, state.inputs, mergedDerived);
       const response = await evaluateRules(payload);
       const bazhaiPayload = createHouseholdBazhaiRequest(state.inputs);
       let bazhaiResult = null;
@@ -390,7 +501,9 @@ export default function App(): JSX.Element {
 
       if (state.analysisMode === "jingzhai") {
         try {
-          jingzhaiResult = await evaluateJingzhaiFull(createJingzhaiFullRequest(state.editor, state.inputs, derived));
+          jingzhaiResult = await evaluateJingzhaiFull(
+            createJingzhaiFullRequest(state.editor, state.inputs, mergedDerived)
+          );
         } catch (err) {
           dispatch({
             type: "set_error",
@@ -403,6 +516,7 @@ export default function App(): JSX.Element {
         payload_hash: hashPayload(payload),
         request: payload,
         response,
+        derivation: derivationResult,
         bazhai_results: bazhaiResult,
         dongzhai_result: dongzhaiResult,
         jingzhai_result: jingzhaiResult
@@ -476,7 +590,7 @@ export default function App(): JSX.Element {
 
         // Save session to backend after successful evaluation
         if (authToken) {
-          const hp = createEvaluationRequest(state.editor, state.inputs, derived);
+          const hp = createEvaluationRequest(state.editor, state.inputs, mergedDerived);
           saveSession({
             house_profile: hp.house_profile as unknown as Record<string, unknown>,
             members: state.inputs.members.map(m => ({
@@ -492,7 +606,15 @@ export default function App(): JSX.Element {
               jingzhai: jingzhaiResult,
               dongzhai: dongzhaiResult,
             },
-          }, authToken).catch(() => {});
+          }, authToken)
+            .then((savedSession) => {
+              const floorplanId = state.editor.floorplan?.id;
+              if (floorplanId) {
+                return attachFloorplanToHouse(savedSession.id, floorplanId, authToken);
+              }
+              return null;
+            })
+            .catch(() => {});
         }
       }
     } catch (err) {
@@ -537,18 +659,29 @@ export default function App(): JSX.Element {
     <article className="sub-panel">
       <h4>{ui(titleKey)}</h4>
       <div className="checkbox-grid">
-        {keys.map((key) => (
-          <label key={key} className="checkbox-item">
-            <input
-              type="checkbox"
-              checked={state.inputs.manual_flags[key]}
-              onChange={(event) => {
-                dispatch({ type: "set_manual_flag", key, value: event.currentTarget.checked });
-              }}
-            />
-            <span>{ui(MANUAL_FLAG_LABELS[key])}</span>
-          </label>
-        ))}
+        {keys.map((key) => {
+          const evidence = internalEvidenceByField.get(`flags.${key}`);
+          const isManual = state.inputs.manual_flags[key];
+          const isAutoDerived =
+            !isManual &&
+            Boolean(evidence && isAutoEvidenceSource(evidence.source) && derivedForUi.internal_layout.flags[key] === true);
+          const needsManual = !isManual && evidence?.source === "not_provided";
+          return (
+            <label key={key} className={`checkbox-item flag-origin-row ${isManual ? "manual-set" : ""}`}>
+              <input
+                type="checkbox"
+                checked={state.inputs.manual_flags[key]}
+                onChange={(event) => {
+                  dispatch({ type: "set_manual_flag", key, value: event.currentTarget.checked });
+                }}
+              />
+              <span>{ui(MANUAL_FLAG_LABELS[key])}</span>
+              {isManual && <span className="origin-pill manual">manual</span>}
+              {isAutoDerived && <span className="origin-pill auto">auto</span>}
+              {needsManual && <span className="origin-pill needed">manual input</span>}
+            </label>
+          );
+        })}
       </div>
     </article>
   );
@@ -1116,6 +1249,30 @@ export default function App(): JSX.Element {
 
           {state.activeTab === "structure" && (
             <>
+              <section className="panel derivation-banner" data-testid="derivation-status-banner">
+                <div>
+                  <h3>{state.language === "en" ? "Derivation Status" : "推导状态"}</h3>
+                  <p className="meta-text">
+                    {state.language === "en"
+                      ? `${derivationSummary.derivedFromPlan} flags derived from the plan, ${derivationSummary.manualInputNeeded} need manual input, ${derivationSummary.manualOverrides} manually set.`
+                      : `${derivationSummary.derivedFromPlan} 个标志来自平面图推导，${derivationSummary.manualInputNeeded} 个需要手动输入，${derivationSummary.manualOverrides} 个已手动设置。`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void fetchInternalLayoutDerivation().catch((err) => {
+                      dispatch({
+                        type: "set_error",
+                        value: err instanceof Error ? `Derivation: ${err.message}` : `Derivation: ${String(err)}`
+                      });
+                    });
+                  }}
+                >
+                  {state.language === "en" ? "Refresh derivation" : "刷新推导"}
+                </button>
+              </section>
+
               <ToolPanel
                 tool={state.tool}
                 onToolChange={(tool) => dispatch({ type: "set_tool", tool })}
@@ -1215,6 +1372,7 @@ export default function App(): JSX.Element {
                 tool={state.tool}
                 editor={state.editor}
                 selectedId={state.editor.selectedId}
+                highlightedPrimitiveId={highlightedPrimitiveId}
                 onSelectPrimitive={(id) => dispatch({ type: "set_editor_selected_id", id })}
                 onViewportChange={(viewport) => dispatch({ type: "set_editor_viewport", viewport })}
                 onAddMarker={(marker) => dispatch({ type: "add_marker", marker })}
@@ -1222,9 +1380,16 @@ export default function App(): JSX.Element {
                 onAddSegment={(segment) => dispatch({ type: "add_segment", segment })}
                 onRemoveSegment={(id) => dispatch({ type: "remove_segment", id })}
                 onComplete={(primitives, entrance, floorplan) => {
+                  const nextEditor = { ...state.editor, primitives, entrance, floorplan };
                   dispatch({
                     type: "commit_editor",
-                    editor: { ...state.editor, primitives, entrance, floorplan }
+                    editor: nextEditor
+                  });
+                  void fetchInternalLayoutDerivation(nextEditor, state.inputs).catch((err) => {
+                    dispatch({
+                      type: "set_error",
+                      value: err instanceof Error ? `Derivation: ${err.message}` : `Derivation: ${String(err)}`
+                    });
                   });
                 }}
               />
@@ -1276,7 +1441,7 @@ export default function App(): JSX.Element {
                 <div className="form-grid three-col compact-grid">
                   <label>
                     {ui("app.internal.derivedHouseArea")}
-                    <input value={derived.house_area_m2} readOnly />
+                    <input value={derivedForUi.house_area_m2} readOnly />
                   </label>
                   <label>
                     {ui("app.internal.overrideHouseArea")}
@@ -1306,7 +1471,7 @@ export default function App(): JSX.Element {
                   </label>
                   <label>
                     {ui("app.internal.derivedMingtangArea")}
-                    <input value={derived.mingtang_area_m2} readOnly />
+                    <input value={derivedForUi.mingtang_area_m2} readOnly />
                   </label>
                   <label>
                     {ui("app.internal.overrideMingtangArea")}
@@ -1320,11 +1485,11 @@ export default function App(): JSX.Element {
                   </label>
                   <label>
                     {ui("app.internal.windowSpaceRatio")}
-                    <input value={derived.internal_layout.measurements.window_to_space_ratio} readOnly />
+                    <input value={derivedForUi.internal_layout.measurements.window_to_space_ratio} readOnly />
                   </label>
                   <label>
                     {ui("app.internal.roomDoorOpposedPairs")}
-                    <input value={derived.internal_layout.counts.room_door_opposed_pairs} readOnly />
+                    <input value={derivedForUi.internal_layout.counts.room_door_opposed_pairs} readOnly />
                   </label>
                 </div>
               </section>
@@ -1478,6 +1643,14 @@ export default function App(): JSX.Element {
                 showAdvanced={state.showAdvancedExternal}
                 onToggleAdvanced={(value) => dispatch({ type: "set_show_advanced_external", value })}
                 onFlagChange={(id, value) => dispatch({ type: "set_external_sha_flag", id, value })}
+              />
+
+              <EvidencePanel
+                language={state.language}
+                derivation={activeDerivation}
+                findings={combinedStructureFindings}
+                primitives={state.editor.primitives}
+                onHighlightPrimitive={handleHighlightPrimitive}
               />
 
               <ResultsPanel

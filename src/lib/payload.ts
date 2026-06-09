@@ -13,6 +13,8 @@ import type {
   EditorState,
   HouseholdBazhaiRequest,
   InputDraftState,
+  InternalLayoutDerivationResponse,
+  InternalLayoutManualOverrides,
   JingzhaiFullRequest,
   RuleEvaluateRequest
 } from "../types/fengshui";
@@ -65,6 +67,73 @@ function normalizeGender(raw: string): "male" | "female" | null {
     return raw;
   }
   return null;
+}
+
+const INTERNAL_LAYOUT_MANUAL_FLAG_KEYS = [
+  "stair_in_center",
+  "toilet_in_center",
+  "toilet_in_qian",
+  "toilet_in_wenchang",
+  "mingtang_not_grounded",
+  "rear_window_open_on_shengqi",
+  "stair_corner_window_open",
+  "center_wall_block",
+  "room_toilet_door_opposed",
+  "room_kitchen_door_opposed",
+  "toilet_kitchen_door_opposed",
+  "main_door_room_door_opposed",
+  "main_door_kitchen_door_opposed",
+  "main_door_toilet_door_opposed"
+] as const;
+
+export function createInternalLayoutManualOverrides(inputs: InputDraftState): InternalLayoutManualOverrides {
+  const flags: Record<string, boolean> = {};
+  for (const key of INTERNAL_LAYOUT_MANUAL_FLAG_KEYS) {
+    if (inputs.manual_flags[key]) {
+      flags[key] = true;
+    }
+  }
+
+  const counts: Record<string, number> = {};
+  if (inputs.manual_counts.entry_qi_turns > 0) {
+    counts.entry_qi_turns = Math.max(0, Math.round(inputs.manual_counts.entry_qi_turns));
+  }
+
+  return {
+    flags,
+    measurements: {},
+    counts
+  };
+}
+
+export function mergeDerivedInternalLayout(
+  derived: DerivedState,
+  inputs: InputDraftState,
+  derivation: InternalLayoutDerivationResponse | null
+): DerivedState {
+  const manualOverrides = createInternalLayoutManualOverrides(inputs);
+  const backendLayout = derivation?.internal_layout;
+
+  return {
+    ...derived,
+    internal_layout: {
+      flags: {
+        ...derived.internal_layout.flags,
+        ...(backendLayout?.flags ?? {}),
+        ...manualOverrides.flags
+      },
+      measurements: {
+        ...derived.internal_layout.measurements,
+        ...(backendLayout?.measurements ?? {}),
+        ...manualOverrides.measurements
+      },
+      counts: {
+        ...derived.internal_layout.counts,
+        ...(backendLayout?.counts ?? {}),
+        ...manualOverrides.counts
+      }
+    }
+  };
 }
 
 function calculateOwnerAgeFromBirthYear(rawBirthYear: string, referenceYear: number): number | null {

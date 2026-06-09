@@ -1,5 +1,7 @@
 /** Auth API client for user registration, login, and session management. */
 
+import type { FloorplanAssetResponse } from "./floorplans";
+
 export interface UserPublic {
   id: string;
   username: string;
@@ -182,6 +184,7 @@ export interface SessionDetailResponse {
   house_profile: Record<string, unknown>;
   members: SessionMemberResponse[];
   analysis_results: Record<string, unknown>;
+  floorplan: FloorplanAssetResponse | null;
   created_at: string;
   updated_at: string;
 }

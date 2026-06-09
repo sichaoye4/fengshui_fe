@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Image, Layer, Group, Line, RegularPolygon, Stage, Text } from "react-konva";
 import { DEFAULT_CANVAS_SIZE, MARKER_TYPES, PIXELS_PER_METER } from "../constants";
+import { getStoredToken } from "../api/auth";
+import {
+  annotationsFromPrimitives,
+  floorplanSourceFromAsset,
+  saveFloorplanAnnotations,
+  uploadPersistedFloorplan
+} from "../api/floorplans";
 import { t } from "../i18n/ui";
 import { getBaguaGrid, type BaguaBoundingBox } from "../lib/baguaGeometry";
 import { metersToPixels, primitiveBounds } from "../lib/geometry";
@@ -28,6 +35,7 @@ interface Props {
   tool: Tool;
   editor?: EditorState;
   selectedId?: string | null;
+  highlightedPrimitiveId?: string | null;
   onSelectPrimitive?: (id: string | null) => void;
   onViewportChange?: (viewport: ViewportState) => void;
   onAddMarker?: (marker: MarkerPrimitive) => void;
@@ -154,6 +162,7 @@ export function FloorplanEditor({
   tool,
   editor,
   selectedId = null,
+  highlightedPrimitiveId = null,
   onSelectPrimitive,
   onViewportChange,
   onAddMarker,
@@ -173,6 +182,13 @@ export function FloorplanEditor({
     imageName: editor?.floorplan?.imageName,
     contentType: editor?.floorplan?.contentType
   });
+  const [persistedFloorplan, setPersistedFloorplan] = useState<
+    Pick<FloorplanSource, "id" | "imageUrl" | "storageKey"> | undefined
+  >(
+    editor?.floorplan?.id
+      ? { id: editor.floorplan.id, imageUrl: editor.floorplan.imageUrl, storageKey: editor.floorplan.storageKey }
+      : undefined
+  );
   const [userSegments, setUserSegments] = useState<SegmentPrimitive[]>([]);
   const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
   const [entranceWallId, setEntranceWallId] = useState<string | null>(null);
@@ -210,6 +226,7 @@ export function FloorplanEditor({
   const shouldRenderSavedPrimitives = savedRooms.length > 0 || savedSegments.length > 0;
   const isMarkerTool = isMarkerToolValue(tool);
   const isSegmentTool = isSegmentToolValue(tool);
+  const isHighlighted = (id: string) => highlightedPrimitiveId === id;
 
   const baguaBBox = useMemo<BaguaBoundingBox | null>(() => {
     if (imageWidth > 0 && imageHeight > 0) {
@@ -242,6 +259,11 @@ export function FloorplanEditor({
       imageName: editor.floorplan?.imageName,
       contentType: editor.floorplan?.contentType
     });
+    setPersistedFloorplan(
+      editor.floorplan?.id
+        ? { id: editor.floorplan.id, imageUrl: editor.floorplan.imageUrl, storageKey: editor.floorplan.storageKey }
+        : undefined
+    );
   }, [editor?.floorplan, editor?.primitives.length]);
 
   useEffect(() => {
@@ -345,22 +367,32 @@ export function FloorplanEditor({
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch(
-        "/api/v1/floorplan/analyze",
-        { method: "POST", body: formData }
-      );
+      const token = getStoredToken();
+      let floorplanAnalysis: FloorplanAnalysis;
+      let persistedSource: FloorplanSource | undefined;
 
-      if (!res.ok) {
-        throw new Error(t(language, "floorplan.uploadError"));
+      if (token) {
+        const asset = await uploadPersistedFloorplan(file, token);
+        floorplanAnalysis = asset.analysis;
+        persistedSource = floorplanSourceFromAsset(asset);
+      } else {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch(
+          "/api/v1/floorplan/analyze",
+          { method: "POST", body: formData }
+        );
+
+        if (!res.ok) {
+          throw new Error(t(language, "floorplan.uploadError"));
+        }
+
+        floorplanAnalysis = (await res.json()) as FloorplanAnalysis;
       }
 
-      const data = await res.json();
       const dataUrl = await fileToDataUrl(file).catch(() =>
         "createObjectURL" in URL ? URL.createObjectURL(file) : ""
       );
-      const floorplanAnalysis = data as FloorplanAnalysis;
 
       setImageUrl(dataUrl || null);
       setImageDataUrl(dataUrl.startsWith("data:") ? dataUrl : undefined);
@@ -371,6 +403,11 @@ export function FloorplanEditor({
         imageName: file.name,
         contentType: file.type || undefined
       });
+      setPersistedFloorplan(
+        persistedSource?.id
+          ? { id: persistedSource.id, imageUrl: persistedSource.imageUrl, storageKey: persistedSource.storageKey }
+          : undefined
+      );
       setPhase("edit");
     } catch (err) {
       setError(
@@ -601,15 +638,19 @@ export function FloorplanEditor({
                   const color = ROOM_TYPE_COLORS[room.roomType ?? "unknown"];
                   const labelPosition = roomLabelPositionPx(room);
                   const label = room.label || t(language, "floorplan.defaultRoom");
+                  const highlighted = isHighlighted(room.id);
                   return (
                     <Group key={room.id}>
                       <Line
                         data-testid={`room-polygon-${room.id}`}
+                        data-highlighted={highlighted ? "true" : "false"}
                         points={roomPolygonPointsPx(room)}
                         fill={color}
                         opacity={0.26}
-                        stroke={selectedId === room.id ? "#0f172a" : color}
-                        strokeWidth={selectedId === room.id ? 3 : 1.5}
+                        stroke={highlighted ? "#f59e0b" : selectedId === room.id ? "#0f172a" : color}
+                        strokeWidth={highlighted ? 5 : selectedId === room.id ? 3 : 1.5}
+                        shadowColor={highlighted ? "#f59e0b" : undefined}
+                        shadowBlur={highlighted ? 12 : 0}
                         closed
                         onClick={(event) => {
                           event.cancelBubble = true;
@@ -665,20 +706,24 @@ export function FloorplanEditor({
                     x: (segment.start.x + segment.end.x) / 2,
                     y: (segment.start.y + segment.end.y) / 2
                   };
+                  const highlighted = isHighlighted(segment.id);
                   return (
                     <Group key={segment.id}>
                       <Line
                         data-testid={`segment-${segment.id}`}
+                        data-highlighted={highlighted ? "true" : "false"}
                         points={[
                           metersToPixels(segment.start.x),
                           metersToPixels(segment.start.y),
                           metersToPixels(segment.end.x),
                           metersToPixels(segment.end.y)
                         ]}
-                        stroke={segmentStroke(segment)}
-                        strokeWidth={selectedId === segment.id ? 4 : segment.kind === "wall" ? 3 : 2.5}
+                        stroke={highlighted ? "#f59e0b" : segmentStroke(segment)}
+                        strokeWidth={highlighted ? 6 : selectedId === segment.id ? 4 : segment.kind === "wall" ? 3 : 2.5}
                         opacity={segment.kind === "wall" ? 0.85 : 0.8}
                         dash={segment.kind === "window" ? [10, 5] : undefined}
+                        shadowColor={highlighted ? "#f59e0b" : undefined}
+                        shadowBlur={highlighted ? 10 : 0}
                         onClick={(event) => {
                           event.cancelBubble = true;
                           if (tool === "delete") {
@@ -742,16 +787,19 @@ export function FloorplanEditor({
             {!shouldRenderSavedPrimitives && userSegments.map((wall) => (
               <Line
                 key={wall.id}
+                data-highlighted={isHighlighted(wall.id) ? "true" : "false"}
                 points={[
                   metersToPixels(wall.start.x),
                   metersToPixels(wall.start.y),
                   metersToPixels(wall.end.x),
                   metersToPixels(wall.end.y),
                 ]}
-                stroke={segmentStroke(wall)}
-                strokeWidth={selectedWallId === wall.id ? 4 : wall.kind === "wall" ? 3 : 2.5}
+                stroke={isHighlighted(wall.id) ? "#f59e0b" : segmentStroke(wall)}
+                strokeWidth={isHighlighted(wall.id) ? 6 : selectedWallId === wall.id ? 4 : wall.kind === "wall" ? 3 : 2.5}
                 opacity={wall.kind === "wall" ? 0.85 : 0.8}
                 dash={wall.kind === "window" ? [10, 5] : undefined}
+                shadowColor={isHighlighted(wall.id) ? "#f59e0b" : undefined}
+                shadowBlur={isHighlighted(wall.id) ? 10 : 0}
                 onClick={(e) => {
                   e.cancelBubble = true;
                   if (tool === "delete") {
@@ -785,6 +833,7 @@ export function FloorplanEditor({
 
             {savedMarkers.map((marker) => {
               const color = MARKER_COLORS[marker.markerType];
+              const highlighted = isHighlighted(marker.id);
               return (
                 <Group
                   key={marker.id}
@@ -824,10 +873,13 @@ export function FloorplanEditor({
                 >
                   <Circle
                     data-testid={`marker-dot-${marker.id}`}
+                    data-highlighted={highlighted ? "true" : "false"}
                     radius={12}
                     fill="#ffffff"
-                    stroke={selectedId === marker.id ? "#0f172a" : color}
-                    strokeWidth={selectedId === marker.id ? 3 : 2}
+                    stroke={highlighted ? "#f59e0b" : selectedId === marker.id ? "#0f172a" : color}
+                    strokeWidth={highlighted ? 5 : selectedId === marker.id ? 3 : 2}
+                    shadowColor={highlighted ? "#f59e0b" : undefined}
+                    shadowBlur={highlighted ? 12 : 0}
                   />
                   <RegularPolygon sides={4} radius={7} fill={color} opacity={0.92} listening={false} />
                   <Text
@@ -946,6 +998,7 @@ export function FloorplanEditor({
             const floorplan: FloorplanSource | undefined = editor?.floorplan ??
               (analysis
                 ? {
+                    ...persistedFloorplan,
                     ...(imageDataUrl ? { imageDataUrl } : {}),
                     imageWidth,
                     imageHeight,
@@ -953,6 +1006,14 @@ export function FloorplanEditor({
                     analysis
                   }
                 : undefined);
+            const token = getStoredToken();
+            if (floorplan?.id && token) {
+              void saveFloorplanAnnotations(
+                floorplan.id,
+                annotationsFromPrimitives(primitives, editor?.northAngleDeg ?? 0),
+                token
+              ).catch(() => {});
+            }
             onComplete(primitives, entrance, floorplan);
           }}
         >

@@ -28,6 +28,8 @@ Related docs:
 - payload and derivation boundaries:
   - `lib/payload.ts`
   - `lib/derivation.ts`
+- persisted floorplan upload/load:
+  - `api/floorplans.ts`
 
 ## Folder Ownership
 
@@ -71,6 +73,7 @@ Related docs:
 - only `structure` currently owns findings-filter state
 - raw input text should stay in draft form until derivation/payload boundaries
 - frontend should not invent formula logic that already exists in `fengshui_core/`
+- authenticated floorplan uploads use `api/floorplans.ts`; the editor should keep `/api/v1/floorplan/analyze` only as the logged-out stateless fallback
 
 ## Tests As Truth
 
