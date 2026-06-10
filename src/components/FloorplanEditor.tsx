@@ -7,7 +7,8 @@ import {
   annotationsFromPrimitives,
   floorplanSourceFromAsset,
   saveFloorplanAnnotations,
-  uploadPersistedFloorplan
+  uploadPersistedFloorplan,
+  type FloorplanAssetResponse
 } from "../api/floorplans";
 import { t } from "../i18n/ui";
 import { getBaguaGrid, type BaguaBoundingBox } from "../lib/baguaGeometry";
@@ -46,6 +47,7 @@ interface Props {
   onRemoveMarker?: (id: string) => void;
   onAddSegment?: (segment: SegmentPrimitive) => void;
   onRemoveSegment?: (id: string) => void;
+  onAnnotationsChange?: (primitives: Primitive[], entrance: PointM | null, floorplan?: FloorplanSource) => void;
   onComplete: (primitives: Primitive[], entrance: PointM | null, floorplan?: FloorplanSource) => void;
 }
 
@@ -173,9 +175,13 @@ function segmentStroke(segment: SegmentPrimitive): string {
   return "#1e293b";
 }
 
+function acceptedAiRoomId(suggestionId: string): string {
+  return `ai-room-${suggestionId.replace(/[^A-Za-z0-9_-]/g, "-")}`;
+}
+
 function bboxToRoomPrimitive(suggestion: FloorplanAiLabelSuggestion): RoomPrimitive {
   return {
-    id: makeId("ai-room"),
+    id: acceptedAiRoomId(suggestion.id),
     kind: "room",
     x: +(suggestion.bbox.x / PIXELS_PER_METER).toFixed(4),
     y: +(suggestion.bbox.y / PIXELS_PER_METER).toFixed(4),
@@ -277,6 +283,7 @@ export function FloorplanEditor({
   onRemoveMarker,
   onAddSegment,
   onRemoveSegment,
+  onAnnotationsChange,
   onComplete
 }: Props): JSX.Element {
   const hasExistingFloorplan = Boolean(editor?.floorplan || editor?.primitives.length);
@@ -302,9 +309,12 @@ export function FloorplanEditor({
   const [entranceWallId, setEntranceWallId] = useState<string | null>(null);
   const [drawStart, setDrawStart] = useState<PointM | null>(null);
   const [drawCurrent, setDrawCurrent] = useState<PointM | null>(null);
-  const [aiSuggestions, setAiSuggestions] = useState<FloorplanAiLabelSuggestion[]>([]);
-  const [acceptedAiRooms, setAcceptedAiRooms] = useState<RoomPrimitive[]>([]);
-  const [aiShaObservations, setAiShaObservations] = useState<FloorplanAiShaObservation[]>([]);
+  const [aiSuggestions, setAiSuggestions] = useState<FloorplanAiLabelSuggestion[]>(
+    () => editor?.floorplan?.aiAnalysis?.suggested_labels ?? []
+  );
+  const [aiShaObservations, setAiShaObservations] = useState<FloorplanAiShaObservation[]>(
+    () => editor?.floorplan?.aiAnalysis?.sha_observations ?? []
+  );
   const [aiLoading, setAiLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -388,6 +398,55 @@ export function FloorplanEditor({
     return [main, center, back];
   }, [baguaBBox, matchedFormulaSet, savedMarkers, savedSegments]);
 
+  const floorplanSourceForAsset = (asset: FloorplanAssetResponse): FloorplanSource => ({
+    ...imageFileMeta,
+    ...floorplanSourceFromAsset(asset, imageDataUrl)
+  });
+
+  const currentFloorplanSource = (asset?: FloorplanAssetResponse): FloorplanSource | undefined => {
+    if (asset) {
+      return floorplanSourceForAsset(asset);
+    }
+    return (
+      editor?.floorplan ??
+      (analysis
+        ? {
+            ...persistedFloorplan,
+            ...(imageDataUrl ? { imageDataUrl } : {}),
+            imageWidth,
+            imageHeight,
+            ...imageFileMeta,
+            analysis
+          }
+        : undefined)
+    );
+  };
+
+  const currentEntrance = (): PointM | null =>
+    shouldRenderSavedPrimitives
+      ? editor?.entrance ?? null
+      : userWallsToEntrance(
+          userSegments.filter((segment) => segment.kind === "wall"),
+          entranceWallId
+        );
+
+  const currentPrimitives = (extraRoom?: RoomPrimitive): Primitive[] => {
+    const canvasWidthM = imageWidth / PIXELS_PER_METER;
+    const canvasHeightM = imageHeight / PIXELS_PER_METER;
+    const primitives = shouldRenderSavedPrimitives
+      ? [...(editor?.primitives ?? [])]
+      : analysis
+        ? cvAnalysisToPrimitives(analysis, canvasWidthM, canvasHeightM)
+        : [];
+    if (!shouldRenderSavedPrimitives) {
+      primitives.push(...savedMarkers, ...userSegments);
+    }
+    if (extraRoom && !primitives.some((primitive) => primitive.id === extraRoom.id)) {
+      primitives.push(extraRoom);
+    }
+    return primitives;
+  };
+
   useEffect(() => {
     if (!editor?.floorplan && !editor?.primitives.length) {
       return;
@@ -398,6 +457,19 @@ export function FloorplanEditor({
     setImageWidth(editor.floorplan?.imageWidth ?? imageWidth);
     setImageHeight(editor.floorplan?.imageHeight ?? imageHeight);
     setAnalysis(editor.floorplan?.analysis ?? null);
+    const acceptedRoomIds = new Set(
+      editor.primitives.filter((item): item is RoomPrimitive => item.kind === "room").map((room) => room.id)
+    );
+    const persistedAi = editor.floorplan?.aiAnalysis;
+    setAiSuggestions(
+      (persistedAi?.suggested_labels ?? []).filter(
+        (suggestion) =>
+          suggestion.bbox.width > 0 &&
+          suggestion.bbox.height > 0 &&
+          !acceptedRoomIds.has(acceptedAiRoomId(suggestion.id))
+      )
+    );
+    setAiShaObservations(persistedAi?.sha_observations ?? []);
     setImageFileMeta({
       imageName: editor.floorplan?.imageName,
       contentType: editor.floorplan?.contentType
@@ -407,7 +479,7 @@ export function FloorplanEditor({
         ? { id: editor.floorplan.id, imageUrl: editor.floorplan.imageUrl, storageKey: editor.floorplan.storageKey }
         : undefined
     );
-  }, [editor?.floorplan, editor?.primitives.length]);
+  }, [editor?.floorplan, editor?.primitives]);
 
   useEffect(() => {
     if (!editor) {
@@ -582,11 +654,23 @@ export function FloorplanEditor({
     setAiLoading(true);
     setError(null);
     try {
-      const result = await analyzeFloorplanWithAi(persistedFloorplan.id, token);
+      const asset = await analyzeFloorplanWithAi(persistedFloorplan.id, token);
+      const result = asset.ai_analysis;
+      if (!result) {
+        throw new Error(t(language, "floorplan.aiError"));
+      }
+      const acceptedRoomIds = new Set(savedRooms.map((room) => room.id));
       setAiSuggestions(
-        result.suggested_labels.filter((suggestion) => suggestion.bbox.width > 0 && suggestion.bbox.height > 0)
+        result.suggested_labels.filter(
+          (suggestion) =>
+            suggestion.bbox.width > 0 &&
+            suggestion.bbox.height > 0 &&
+            !acceptedRoomIds.has(acceptedAiRoomId(suggestion.id))
+        )
       );
       setAiShaObservations(result.sha_observations);
+      setPersistedFloorplan({ id: asset.id, imageUrl: asset.image_url, storageKey: asset.storage_key });
+      onAnnotationsChange?.(currentPrimitives(), currentEntrance(), currentFloorplanSource(asset));
     } catch (err) {
       setError(err instanceof Error ? err.message : t(language, "floorplan.aiError"));
     } finally {
@@ -594,9 +678,33 @@ export function FloorplanEditor({
     }
   };
 
-  const acceptAiSuggestion = (suggestion: FloorplanAiLabelSuggestion) => {
-    setAcceptedAiRooms((prev) => [...prev, bboxToRoomPrimitive(suggestion)]);
-    setAiSuggestions((prev) => prev.filter((item) => item.id !== suggestion.id));
+  const acceptAiSuggestion = async (suggestion: FloorplanAiLabelSuggestion) => {
+    if (!persistedFloorplan?.id) {
+      setError(t(language, "floorplan.aiNeedsSaved"));
+      return;
+    }
+    const token = getStoredToken();
+    if (!token) {
+      setError(t(language, "floorplan.aiNeedsAuth"));
+      return;
+    }
+
+    const room = bboxToRoomPrimitive(suggestion);
+    const primitives = currentPrimitives(room);
+    const entrance = currentEntrance();
+    setError(null);
+
+    try {
+      const asset = await saveFloorplanAnnotations(
+        persistedFloorplan.id,
+        annotationsFromPrimitives(primitives, editor?.northAngleDeg ?? 0),
+        token
+      );
+      setAiSuggestions((prev) => prev.filter((item) => item.id !== suggestion.id));
+      onAnnotationsChange?.(primitives, entrance, currentFloorplanSource(asset));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t(language, "floorplan.aiError"));
+    }
   };
 
   const rejectAiSuggestion = (suggestionId: string) => {
@@ -878,41 +986,6 @@ export function FloorplanEditor({
                     listening={false}
                   />
                 ))}
-
-            {acceptedAiRooms.map((room) => {
-              const color = ROOM_TYPE_COLORS[room.roomType ?? "unknown"];
-              const labelPosition = roomLabelPositionPx(room);
-              return (
-                <Group key={room.id}>
-                  <Line
-                    data-testid={`room-polygon-${room.id}`}
-                    points={roomPolygonPointsPx(room)}
-                    fill={color}
-                    opacity={0.26}
-                    stroke={color}
-                    strokeWidth={1.5}
-                    closed
-                    onClick={(event) => {
-                      event.cancelBubble = true;
-                      if (tool === "select") {
-                        setSelectedWallId(null);
-                        onSelectPrimitive?.(room.id);
-                      }
-                    }}
-                  />
-                  <Text
-                    text={room.label || t(language, "floorplan.defaultRoom")}
-                    x={labelPosition.x - 38}
-                    y={labelPosition.y - 10}
-                    width={76}
-                    align="center"
-                    fontSize={12}
-                    fill="#0f172a"
-                    listening={false}
-                  />
-                </Group>
-              );
-            })}
 
             {aiSuggestions.map((suggestion) => {
               const color = ROOM_TYPE_COLORS[suggestion.room_type ?? "unknown"];
@@ -1262,6 +1335,15 @@ export function FloorplanEditor({
             )}
           </Layer>
         </Stage>
+        {aiLoading && (
+          <div className="ai-analysis-overlay" role="status" aria-live="polite">
+            <div className="ai-analysis-spinner" />
+            <p>{t(language, "floorplan.aiOverlayText")}</p>
+            <div className="ai-analysis-progress" aria-hidden="true">
+              <span />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Action bar */}
@@ -1285,37 +1367,9 @@ export function FloorplanEditor({
         <button
           type="button"
           onClick={() => {
-            const canvasWidthM = imageWidth / PIXELS_PER_METER;
-            const canvasHeightM = imageHeight / PIXELS_PER_METER;
-            const primitives = shouldRenderSavedPrimitives
-              ? [...(editor?.primitives ?? []), ...acceptedAiRooms]
-              : analysis
-                ? cvAnalysisToPrimitives(
-                    analysis,
-                    canvasWidthM,
-                    canvasHeightM
-                  )
-                : [];
-            if (!shouldRenderSavedPrimitives) {
-              primitives.push(...acceptedAiRooms, ...savedMarkers, ...userSegments);
-            }
-            const entrance = shouldRenderSavedPrimitives
-              ? editor?.entrance ?? null
-              : userWallsToEntrance(
-                  userSegments.filter((segment) => segment.kind === "wall"),
-                  entranceWallId
-                );
-            const floorplan: FloorplanSource | undefined = editor?.floorplan ??
-              (analysis
-                ? {
-                    ...persistedFloorplan,
-                    ...(imageDataUrl ? { imageDataUrl } : {}),
-                    imageWidth,
-                    imageHeight,
-                    ...imageFileMeta,
-                    analysis
-                  }
-                : undefined);
+            const primitives = currentPrimitives();
+            const entrance = currentEntrance();
+            const floorplan = currentFloorplanSource();
             const token = getStoredToken();
             if (floorplan?.id && token) {
               void saveFloorplanAnnotations(

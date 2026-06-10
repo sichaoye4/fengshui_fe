@@ -64,6 +64,7 @@ export interface FloorplanAssetResponse {
   width: number;
   height: number;
   analysis: FloorplanAnalysis;
+  ai_analysis: FloorplanAiAnalysis | null;
   annotations: FloorplanAnnotationsPayload;
   derived_internal_layout: Record<string, unknown>;
   image_url: string;
@@ -133,19 +134,15 @@ export async function attachFloorplanToHouse(
 export async function analyzeFloorplanWithAi(
   floorplanId: string,
   token = getStoredToken() ?? ""
-): Promise<FloorplanAiAnalysis> {
-  const formData = new FormData();
-  formData.append("floorplan_id", floorplanId);
-
-  const response = await fetch("/api/v1/floorplan/ai-analyze", {
+): Promise<FloorplanAssetResponse> {
+  const response = await fetch(`/api/v1/floorplans/${floorplanId}/ai-analysis`, {
     method: "POST",
-    headers: authHeaders(token),
-    body: formData
+    headers: authHeaders(token)
   });
   if (!response.ok) {
     throw new Error(await parseError(response));
   }
-  return (await response.json()) as FloorplanAiAnalysis;
+  return (await response.json()) as FloorplanAssetResponse;
 }
 
 export async function deriveInternalLayout(
@@ -206,7 +203,8 @@ export function floorplanSourceFromAsset(
     imageWidth: asset.width,
     imageHeight: asset.height,
     contentType: asset.content_type,
-    analysis: asset.analysis
+    analysis: asset.analysis,
+    aiAnalysis: asset.ai_analysis
   };
 }
 

@@ -189,6 +189,7 @@ export interface FloorplanSource {
   imageName?: string;
   contentType?: string;
   analysis?: FloorplanAnalysis;
+  aiAnalysis?: FloorplanAiAnalysis | null;
 }
 
 export interface ManualFlags {

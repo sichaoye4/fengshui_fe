@@ -155,7 +155,7 @@ The top analysis tabs use short visible labels and full ARIA labels; data-heavy 
 - `src/api/client.ts`
   - main evaluate + Bazhai requests
 - `src/api/floorplans.ts`
-  - authenticated floorplan upload, annotation save, house attachment, and image hydration
+  - authenticated floorplan upload, persisted AI analysis, annotation save, house attachment, and image hydration
 - `src/api/temporal.ts`
   - temporal, flying-star, Liqi, and period requests
 - `src/lib/payload.ts`

@@ -28,7 +28,7 @@ Related docs:
 - payload and derivation boundaries:
   - `lib/payload.ts`
   - `lib/derivation.ts`
-- persisted floorplan upload/load:
+- persisted floorplan upload/AI/load:
   - `api/floorplans.ts`
 
 ## Folder Ownership
@@ -74,6 +74,7 @@ Related docs:
 - raw input text should stay in draft form until derivation/payload boundaries
 - frontend should not invent formula logic that already exists in `fengshui_core/`
 - authenticated floorplan uploads use `api/floorplans.ts`; the editor should keep `/api/v1/floorplan/analyze` only as the logged-out stateless fallback
+- saved floorplan AI analysis uses `api/floorplans.ts` and returns a full floorplan asset; accepted AI rooms are saved immediately as annotations, not kept only in component state
 
 ## Tests As Truth
 

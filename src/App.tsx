@@ -1423,6 +1423,19 @@ export default function App(): JSX.Element {
                 onRemoveMarker={(id) => dispatch({ type: "remove_marker", id })}
                 onAddSegment={(segment) => dispatch({ type: "add_segment", segment })}
                 onRemoveSegment={(id) => dispatch({ type: "remove_segment", id })}
+                onAnnotationsChange={(primitives, entrance, floorplan) => {
+                  const nextEditor = { ...state.editor, primitives, entrance, floorplan };
+                  dispatch({
+                    type: "commit_editor",
+                    editor: nextEditor
+                  });
+                  void fetchInternalLayoutDerivation(nextEditor, state.inputs).catch((err) => {
+                    dispatch({
+                      type: "set_error",
+                      value: err instanceof Error ? `Derivation: ${err.message}` : `Derivation: ${String(err)}`
+                    });
+                  });
+                }}
                 onComplete={(primitives, entrance, floorplan) => {
                   const nextEditor = { ...state.editor, primitives, entrance, floorplan };
                   dispatch({

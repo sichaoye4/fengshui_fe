@@ -374,41 +374,61 @@ describe("FloorplanEditor", () => {
         user: { id: "user-1", username: "owner", display_name: "", is_active: true, created_at: "", last_login_at: null }
       })
     );
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        provider: "dashscope",
-        model_name: "qwen3.5-plus",
-        width: 200,
-        height: 100,
-        rooms: [],
-        walls: [],
-        suggested_labels: [
-          {
-            id: "label-1",
-            room_id: "room-1",
-            label: "Bath",
-            room_type: "toilet",
-            confidence: 0.83,
-            bbox: { x: 20, y: 10, width: 80, height: 40 }
-          }
-        ],
-        sha_observations: [
-          {
-            id: "sha-1",
-            issue_type: "toilet_facing_door",
-            severity: "medium",
-            confidence: 0.5,
-            description: "Toilet may face a door",
-            related_room_ids: ["room-1"],
-            related_feature_ids: [],
-            suggested_action: ""
-          }
-        ],
-        usage: {}
-      })
-    } as Response);
-    const onComplete = vi.fn();
+    const aiAnalysis = {
+      provider: "dashscope",
+      model_name: "qwen3.5-plus",
+      width: 200,
+      height: 100,
+      rooms: [],
+      walls: [],
+      suggested_labels: [
+        {
+          id: "label-1",
+          room_id: "room-1",
+          label: "Bath",
+          room_type: "toilet",
+          confidence: 0.83,
+          bbox: { x: 20, y: 10, width: 80, height: 40 }
+        }
+      ],
+      sha_observations: [
+        {
+          id: "sha-1",
+          issue_type: "toilet_facing_door",
+          severity: "medium",
+          confidence: 0.5,
+          description: "Toilet may face a door",
+          related_room_ids: ["room-1"],
+          related_feature_ids: [],
+          suggested_action: ""
+        }
+      ],
+      usage: {}
+    };
+    const asset = {
+      id: "floorplan-1",
+      house_id: null,
+      content_type: "image/png",
+      storage_key: "aa/floorplan.png",
+      width: 200,
+      height: 100,
+      analysis: { width: 200, height: 100, walls: [], rooms: [] },
+      ai_analysis: aiAnalysis,
+      annotations: { rooms: [], segments: [], markers: [], northAngleDeg: 0, manualOverrides: { flags: {}, measurements: {}, counts: {} } },
+      derived_internal_layout: {},
+      image_url: "/api/v1/floorplans/floorplan-1/image",
+      created_at: "2026-06-11T00:00:00Z",
+      updated_at: "2026-06-11T00:00:00Z"
+    };
+    let resolveAi: (response: Response) => void = () => {};
+    const aiPromise = new Promise<Response>((resolve) => {
+      resolveAi = resolve;
+    });
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementationOnce(() => aiPromise)
+      .mockResolvedValueOnce({ ok: true, json: async () => asset } as Response);
+    const onAnnotationsChange = vi.fn();
 
     render(
       <FloorplanEditor
@@ -431,30 +451,54 @@ describe("FloorplanEditor", () => {
             analysis: { width: 200, height: 100, walls: [], rooms: [] }
           }
         }}
-        onComplete={onComplete}
+        onAnnotationsChange={onAnnotationsChange}
+        onComplete={vi.fn()}
       />
     );
 
     await userEvent.click(screen.getByRole("button", { name: "AI Analyze" }));
+    expect(screen.getByText("AI analyzing your floorplan...")).toBeInTheDocument();
+    resolveAi({ ok: true, json: async () => asset } as Response);
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/floorplan/ai-analyze",
-      expect.objectContaining({
-        method: "POST",
-        headers: { Authorization: "Bearer access-token" },
-        body: expect.any(FormData)
-      })
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        1,
+        "/api/v1/floorplans/floorplan-1/ai-analysis",
+        expect.objectContaining({
+          method: "POST",
+          headers: { Authorization: "Bearer access-token" }
+        })
+      )
     );
     expect(await screen.findByTestId("ai-suggestion-label-1")).toBeInTheDocument();
     expect(screen.getByText("Toilet may face a door")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Accept" }));
-    await userEvent.click(screen.getByRole("button", { name: "Complete" }));
 
-    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
-    const [primitives] = onComplete.mock.calls[0];
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const putBody = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body));
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/floorplans/floorplan-1/annotations",
+      expect.objectContaining({
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer access-token" }
+      })
+    );
+    expect(putBody.rooms[0]).toMatchObject({
+      id: "ai-room-label-1",
+      label: "Bath",
+      roomType: "toilet",
+      x: 0.2,
+      y: 0.1,
+      width: 0.8,
+      height: 0.4
+    });
+    expect(onAnnotationsChange).toHaveBeenCalled();
+    const [primitives] = onAnnotationsChange.mock.calls[onAnnotationsChange.mock.calls.length - 1];
     expect(primitives).toEqual([
       expect.objectContaining({
+        id: "ai-room-label-1",
         kind: "room",
         label: "Bath",
         roomType: "toilet",
