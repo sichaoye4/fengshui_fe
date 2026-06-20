@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FloorplanEditor } from "./FloorplanEditor";
@@ -26,6 +26,14 @@ vi.mock("react-konva", () => {
           };
           props.onClick?.({ target: stage });
         }}
+        onMouseMove={() => {
+          const stage = {
+            getPointerPosition: () => konvaMock.pointer,
+            getStage: () => stage
+          };
+          props.onMouseMove?.({ target: stage });
+        }}
+        onMouseLeave={() => props.onMouseLeave?.()}
       >
         {children}
       </div>
@@ -34,6 +42,15 @@ vi.mock("react-konva", () => {
       <div data-testid="konva-layer">{children}</div>
     ),
     Group: MockGroup,
+    Circle: ({ onClick, ...props }: any) => (
+      <div
+        data-testid={props["data-testid"] ?? "konva-circle"}
+        data-x={props.x}
+        data-y={props.y}
+        data-radius={props.radius}
+        onClick={(event) => onClick?.({ ...event, cancelBubble: false })}
+      />
+    ),
     Image: () => <div data-testid="konva-image" />,
     Line: ({ onClick, ...props }: any) => (
       <div
@@ -44,6 +61,7 @@ vi.mock("react-konva", () => {
         onClick={(event) => onClick?.({ ...event, cancelBubble: false })}
       />
     ),
+    RegularPolygon: () => <div data-testid="konva-regular-polygon" />,
     Text: ({ text }: any) => <div data-testid="konva-text">{text}</div>,
   };
 });
@@ -207,7 +225,7 @@ describe("FloorplanEditor", () => {
 
     konvaMock.pointer = { x: 0, y: 0 };
     await userEvent.click(stage);
-    konvaMock.pointer = { x: 2, y: 0 };
+    konvaMock.pointer = { x: 200, y: 0 };
     await userEvent.click(stage);
 
     await userEvent.click(screen.getByRole("button", { name: "Complete" }));
@@ -227,6 +245,103 @@ describe("FloorplanEditor", () => {
         end: { x: 2, y: 0 }
       })
     ]);
+  });
+
+  it("renders an in-canvas icon toolbar and changes tools", async () => {
+    const onToolChange = vi.fn();
+    const onUndo = vi.fn();
+
+    render(
+      <FloorplanEditor
+        language="en"
+        tool="select"
+        editor={{
+          gridSizeM: 0.1,
+          viewport: { x: 0, y: 0, scale: 1 },
+          northAngleDeg: 0,
+          entrance: null,
+          selectedId: null,
+          primitives: [],
+          floorplan: {
+            imageWidth: 200,
+            imageHeight: 100,
+            analysis: { width: 200, height: 100, walls: [], rooms: [] }
+          }
+        }}
+        onToolChange={onToolChange}
+        onUndo={onUndo}
+        canUndo
+        onComplete={vi.fn()}
+      />
+    );
+
+    const toolbar = screen.getByRole("toolbar", { name: "Tools" });
+    expect(toolbar.closest(".canvas-shell")).toBeInTheDocument();
+    const deleteButton = screen.getByRole("button", { name: "Delete" });
+    expect(deleteButton.closest(".floorplan-canvas-toolbar")).toBe(toolbar);
+
+    await userEvent.click(deleteButton);
+    expect(onToolChange).toHaveBeenCalledWith("delete");
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(onUndo).toHaveBeenCalledTimes(1);
+  });
+
+  it("deletes the nearest saved segment from a background click within the erase radius", async () => {
+    const onRemoveSegment = vi.fn();
+
+    render(
+      <FloorplanEditor
+        language="en"
+        tool="delete"
+        editor={{
+          gridSizeM: 0.1,
+          viewport: { x: 0, y: 0, scale: 1 },
+          northAngleDeg: 0,
+          entrance: null,
+          selectedId: null,
+          primitives: [
+            { id: "wall-1", kind: "wall", start: { x: 0, y: 0 }, end: { x: 2, y: 0 } }
+          ]
+        }}
+        onRemoveSegment={onRemoveSegment}
+        onComplete={vi.fn()}
+      />
+    );
+
+    const stage = screen.getByTestId("konva-stage");
+    konvaMock.pointer = { x: 100, y: 20 };
+    fireEvent.mouseMove(stage);
+    expect(screen.getByTestId("delete-radius")).toHaveAttribute("data-radius", "35");
+
+    await userEvent.click(stage);
+    expect(onRemoveSegment).toHaveBeenCalledWith("wall-1");
+  });
+
+  it("does not delete saved primitives from a background click outside the erase radius", async () => {
+    const onRemoveSegment = vi.fn();
+
+    render(
+      <FloorplanEditor
+        language="en"
+        tool="delete"
+        editor={{
+          gridSizeM: 0.1,
+          viewport: { x: 0, y: 0, scale: 1 },
+          northAngleDeg: 0,
+          entrance: null,
+          selectedId: null,
+          primitives: [
+            { id: "wall-1", kind: "wall", start: { x: 0, y: 0 }, end: { x: 2, y: 0 } }
+          ]
+        }}
+        onRemoveSegment={onRemoveSegment}
+        onComplete={vi.fn()}
+      />
+    );
+
+    konvaMock.pointer = { x: 500, y: 500 };
+    await userEvent.click(screen.getByTestId("konva-stage"));
+    expect(onRemoveSegment).not.toHaveBeenCalled();
   });
 
   it("passes CV room polygons and floorplan metadata on complete", async () => {
@@ -379,18 +494,24 @@ describe("FloorplanEditor", () => {
       model_name: "qwen3.5-plus",
       width: 200,
       height: 100,
-      rooms: [],
-      walls: [],
-      suggested_labels: [
+      rooms: [
         {
-          id: "label-1",
-          room_id: "room-1",
-          label: "Bath",
+          id: "room-1",
           room_type: "toilet",
+          label: "Bath",
+          location: "north",
           confidence: 0.83,
-          bbox: { x: 20, y: 10, width: 80, height: 40 }
+          bbox: { x: 20, y: 10, width: 80, height: 40 },
+          polygon: [
+            { x: 20, y: 10 },
+            { x: 100, y: 10 },
+            { x: 100, y: 50 },
+            { x: 20, y: 50 }
+          ]
         }
       ],
+      walls: [],
+      suggested_labels: [],
       sha_observations: [
         {
           id: "sha-1",
@@ -470,7 +591,7 @@ describe("FloorplanEditor", () => {
         })
       )
     );
-    expect(await screen.findByTestId("ai-suggestion-label-1")).toBeInTheDocument();
+    expect(await screen.findByTestId("ai-suggestion-room-1")).toBeInTheDocument();
     expect(screen.getByText("Toilet may face a door")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Accept" }));
@@ -486,7 +607,7 @@ describe("FloorplanEditor", () => {
       })
     );
     expect(putBody.rooms[0]).toMatchObject({
-      id: "ai-room-label-1",
+      id: "ai-room-room-1",
       label: "Bath",
       roomType: "toilet",
       x: 0.2,
@@ -494,11 +615,17 @@ describe("FloorplanEditor", () => {
       width: 0.8,
       height: 0.4
     });
+    expect(putBody.rooms[0].points).toEqual([
+      { x: 0.2, y: 0.1 },
+      { x: 1, y: 0.1 },
+      { x: 1, y: 0.5 },
+      { x: 0.2, y: 0.5 }
+    ]);
     expect(onAnnotationsChange).toHaveBeenCalled();
     const [primitives] = onAnnotationsChange.mock.calls[onAnnotationsChange.mock.calls.length - 1];
     expect(primitives).toEqual([
       expect.objectContaining({
-        id: "ai-room-label-1",
+        id: "ai-room-room-1",
         kind: "room",
         label: "Bath",
         roomType: "toilet",

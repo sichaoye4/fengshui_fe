@@ -23,6 +23,7 @@ export interface FloorplanAiRoom {
   location: string;
   confidence: number;
   bbox: FloorplanAiBoundingBox;
+  polygon?: PointM[];
 }
 
 export interface FloorplanAiWall {
@@ -41,6 +42,7 @@ export interface FloorplanAiLabelSuggestion {
   room_type: RoomType;
   confidence: number;
   bbox: FloorplanAiBoundingBox;
+  polygon?: PointM[];
 }
 
 export interface FloorplanAiShaObservation {

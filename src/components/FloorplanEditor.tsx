@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Image, Layer, Group, Line, RegularPolygon, Stage, Text } from "react-konva";
-import { DEFAULT_CANVAS_SIZE, MARKER_TYPES, PIXELS_PER_METER } from "../constants";
+import { DEFAULT_CANVAS_SIZE, MARKER_TYPES, PIXELS_PER_METER, TOOL_ORDER } from "../constants";
 import { getStoredToken } from "../api/auth";
 import {
   analyzeFloorplanWithAi,
@@ -17,7 +17,10 @@ import { makeId } from "../lib/id";
 import { cvAnalysisToPrimitives, userWallsToEntrance } from "../lib/floorplan";
 import type {
   EditorState,
+  BaseTool,
+  FloorplanAiAnalysis,
   FloorplanAiLabelSuggestion,
+  FloorplanAiRoom,
   FloorplanAiShaObservation,
   FloorplanAnalysis,
   FloorplanPhase,
@@ -47,6 +50,12 @@ interface Props {
   onRemoveMarker?: (id: string) => void;
   onAddSegment?: (segment: SegmentPrimitive) => void;
   onRemoveSegment?: (id: string) => void;
+  onRemoveRoom?: (id: string) => void;
+  onToolChange?: (tool: Tool) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
   onAnnotationsChange?: (primitives: Primitive[], entrance: PointM | null, floorplan?: FloorplanSource) => void;
   onComplete: (primitives: Primitive[], entrance: PointM | null, floorplan?: FloorplanSource) => void;
 }
@@ -56,6 +65,8 @@ const CANVAS_WORLD_LIMIT_M = 50;
 const SNAP_GRID_M = 0.1;
 const DRAW_MIN_DISTANCE_M = 0.5;
 const SNAP_ANGLE_TOLERANCE_DEG = 15;
+const DELETE_RADIUS_M = 0.35;
+const DELETE_EPSILON_M = 0.0001;
 
 const ROOM_TYPE_COLORS: Record<RoomType, string> = {
   unknown: "#94a3b8",
@@ -116,6 +127,83 @@ const MARKER_LABELS: Record<MarkerType, string> = {
   skylight: "SL",
   open_stairwell: "OS"
 };
+
+const TOOL_LABEL_KEYS: Record<BaseTool, Parameters<typeof t>[1]> = {
+  select: "tool.select",
+  delete: "tool.delete",
+  wall: "tool.wall",
+  door: "tool.door",
+  window: "tool.window"
+};
+
+type DeletionHit =
+  | { kind: "marker"; id: string; distance: number; priority: 0 }
+  | { kind: "segment"; id: string; distance: number; priority: 1 }
+  | { kind: "room"; id: string; distance: number; priority: 2 };
+
+function ToolIcon({ tool }: { tool: BaseTool | "undo" | "redo" }): JSX.Element {
+  const common = {
+    viewBox: "0 0 24 24",
+    width: 20,
+    height: 20,
+    "aria-hidden": true,
+    focusable: "false"
+  } as const;
+
+  if (tool === "select") {
+    return (
+      <svg {...common}>
+        <path d="M5 3l11 10-5 1.1L8.4 20 5 3z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (tool === "delete") {
+    return (
+      <svg {...common}>
+        <path d="M7 16.5l7.8-7.8a2.1 2.1 0 013 0l1.5 1.5a2.1 2.1 0 010 3L12 20.5H6.5L4 18l3-1.5z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+        <path d="M11.5 19.5L6 14" stroke="currentColor" strokeWidth="1.7" />
+      </svg>
+    );
+  }
+  if (tool === "wall") {
+    return (
+      <svg {...common}>
+        <path d="M4 12h16" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+        <path d="M6 8h12M6 16h12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity="0.55" />
+      </svg>
+    );
+  }
+  if (tool === "door") {
+    return (
+      <svg {...common}>
+        <path d="M6 20V4h7v16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+        <path d="M13 5c4 2.2 6 5.9 6 11" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+        <circle cx="11" cy="12" r="1" fill="currentColor" />
+      </svg>
+    );
+  }
+  if (tool === "window") {
+    return (
+      <svg {...common}>
+        <path d="M4 8h16M4 16h16M12 5v14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (tool === "undo") {
+    return (
+      <svg {...common}>
+        <path d="M9 7H5v4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M5 11c2.4-3.7 8.8-5 12.2-1.7 2.4 2.3 2.4 6.1 0 8.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <path d="M15 7h4v4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M19 11c-2.4-3.7-8.8-5-12.2-1.7-2.4 2.3-2.4 6.1 0 8.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 function isMarkerToolValue(tool: Tool): tool is MarkerType {
   return (MARKER_TYPES as string[]).includes(tool);
@@ -179,20 +267,54 @@ function acceptedAiRoomId(suggestionId: string): string {
   return `ai-room-${suggestionId.replace(/[^A-Za-z0-9_-]/g, "-")}`;
 }
 
+function semanticRoomToSuggestion(room: FloorplanAiRoom): FloorplanAiLabelSuggestion {
+  return {
+    id: room.id,
+    room_id: room.id,
+    label: room.label || room.room_type,
+    room_type: room.room_type,
+    confidence: room.confidence,
+    bbox: room.bbox,
+    polygon: room.polygon
+  };
+}
+
+function semanticSuggestionsFromAnalysis(analysis?: FloorplanAiAnalysis | null): FloorplanAiLabelSuggestion[] {
+  if (!analysis) {
+    return [];
+  }
+  const roomSuggestions = analysis.rooms.map(semanticRoomToSuggestion).filter(
+    (suggestion) => suggestion.bbox.width > 0 && suggestion.bbox.height > 0
+  );
+  return roomSuggestions.length > 0 ? roomSuggestions : analysis.suggested_labels;
+}
+
 function bboxToRoomPrimitive(suggestion: FloorplanAiLabelSuggestion): RoomPrimitive {
+  const polygon = (suggestion.polygon ?? [])
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+    .map((point) => ({
+      x: +(point.x / PIXELS_PER_METER).toFixed(4),
+      y: +(point.y / PIXELS_PER_METER).toFixed(4)
+    }));
+  const polygonBounds = polygon.length >= 3 ? primitiveBounds([{ id: "ai-room-bounds", kind: "room", x: 0, y: 0, width: 0, height: 0, points: polygon }]) : null;
+
   return {
     id: acceptedAiRoomId(suggestion.id),
     kind: "room",
-    x: +(suggestion.bbox.x / PIXELS_PER_METER).toFixed(4),
-    y: +(suggestion.bbox.y / PIXELS_PER_METER).toFixed(4),
-    width: +(suggestion.bbox.width / PIXELS_PER_METER).toFixed(4),
-    height: +(suggestion.bbox.height / PIXELS_PER_METER).toFixed(4),
+    x: polygonBounds ? +polygonBounds.minX.toFixed(4) : +(suggestion.bbox.x / PIXELS_PER_METER).toFixed(4),
+    y: polygonBounds ? +polygonBounds.minY.toFixed(4) : +(suggestion.bbox.y / PIXELS_PER_METER).toFixed(4),
+    width: polygonBounds ? +(polygonBounds.maxX - polygonBounds.minX).toFixed(4) : +(suggestion.bbox.width / PIXELS_PER_METER).toFixed(4),
+    height: polygonBounds ? +(polygonBounds.maxY - polygonBounds.minY).toFixed(4) : +(suggestion.bbox.height / PIXELS_PER_METER).toFixed(4),
+    ...(polygon.length >= 3 ? { points: polygon } : {}),
     label: suggestion.label,
     roomType: suggestion.room_type
   };
 }
 
 function suggestionRectPointsPx(suggestion: FloorplanAiLabelSuggestion): number[] {
+  if (suggestion.polygon && suggestion.polygon.length >= 3) {
+    return suggestion.polygon.flatMap((point) => [point.x, point.y]);
+  }
   const { x, y, width, height } = suggestion.bbox;
   return [x, y, x + width, y, x + width, y + height, x, y + height];
 }
@@ -225,6 +347,70 @@ function pointInPolygon(point: PointM, polygon: PointM[]): boolean {
 
 function pointInAnyRoom(point: PointM, rooms: RoomPrimitive[]): boolean {
   return rooms.some((room) => pointInPolygon(point, roomPoints(room)));
+}
+
+function distanceBetweenPoints(a: PointM, b: PointM): number {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function distanceToSegment(point: PointM, segment: SegmentPrimitive): number {
+  const vx = segment.end.x - segment.start.x;
+  const vy = segment.end.y - segment.start.y;
+  const wx = point.x - segment.start.x;
+  const wy = point.y - segment.start.y;
+  const lengthSquared = vx * vx + vy * vy;
+  if (lengthSquared <= 0) {
+    return distanceBetweenPoints(point, segment.start);
+  }
+  const tValue = Math.max(0, Math.min(1, (wx * vx + wy * vy) / lengthSquared));
+  return distanceBetweenPoints(point, {
+    x: segment.start.x + tValue * vx,
+    y: segment.start.y + tValue * vy
+  });
+}
+
+function distanceToRoom(point: PointM, room: RoomPrimitive): number {
+  const points = roomPoints(room);
+  if (pointInPolygon(point, points)) {
+    return 0;
+  }
+  return points.reduce((nearest, current, index) => {
+    const next = points[(index + 1) % points.length];
+    const segment: SegmentPrimitive = { id: room.id, kind: "wall", start: current, end: next };
+    return Math.min(nearest, distanceToSegment(point, segment));
+  }, Number.POSITIVE_INFINITY);
+}
+
+function nearestDeletionHit(
+  point: PointM,
+  rooms: RoomPrimitive[],
+  segments: SegmentPrimitive[],
+  markers: MarkerPrimitive[]
+): DeletionHit | null {
+  const hits: DeletionHit[] = [
+    ...markers.map((marker): DeletionHit => ({
+      kind: "marker",
+      id: marker.id,
+      distance: distanceBetweenPoints(point, marker),
+      priority: 0
+    })),
+    ...segments.map((segment): DeletionHit => ({
+      kind: "segment",
+      id: segment.id,
+      distance: distanceToSegment(point, segment),
+      priority: 1
+    })),
+    ...rooms.map((room): DeletionHit => ({
+      kind: "room",
+      id: room.id,
+      distance: distanceToRoom(point, room),
+      priority: 2
+    }))
+  ].filter((hit) => hit.distance <= DELETE_RADIUS_M + DELETE_EPSILON_M);
+
+  return hits.sort((a, b) => a.distance - b.distance || a.priority - b.priority)[0] ?? null;
 }
 
 function segmentLength(segment: SegmentPrimitive): number {
@@ -283,6 +469,12 @@ export function FloorplanEditor({
   onRemoveMarker,
   onAddSegment,
   onRemoveSegment,
+  onRemoveRoom,
+  onToolChange,
+  onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false,
   onAnnotationsChange,
   onComplete
 }: Props): JSX.Element {
@@ -309,8 +501,9 @@ export function FloorplanEditor({
   const [entranceWallId, setEntranceWallId] = useState<string | null>(null);
   const [drawStart, setDrawStart] = useState<PointM | null>(null);
   const [drawCurrent, setDrawCurrent] = useState<PointM | null>(null);
+  const [erasePoint, setErasePoint] = useState<PointM | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<FloorplanAiLabelSuggestion[]>(
-    () => editor?.floorplan?.aiAnalysis?.suggested_labels ?? []
+    () => semanticSuggestionsFromAnalysis(editor?.floorplan?.aiAnalysis)
   );
   const [aiShaObservations, setAiShaObservations] = useState<FloorplanAiShaObservation[]>(
     () => editor?.floorplan?.aiAnalysis?.sha_observations ?? []
@@ -462,7 +655,7 @@ export function FloorplanEditor({
     );
     const persistedAi = editor.floorplan?.aiAnalysis;
     setAiSuggestions(
-      (persistedAi?.suggested_labels ?? []).filter(
+      semanticSuggestionsFromAnalysis(persistedAi).filter(
         (suggestion) =>
           suggestion.bbox.width > 0 &&
           suggestion.bbox.height > 0 &&
@@ -526,24 +719,61 @@ export function FloorplanEditor({
         setUserSegments((prev) => prev.filter((segment) => segment.id !== selectedWallId));
         onRemoveSegment?.(selectedWallId);
         setSelectedWallId(null);
+        return;
+      }
+      const selectedPrimitive = editor?.primitives.find((primitive) => primitive.id === selectedId);
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedPrimitive) {
+        if (selectedPrimitive.kind === "marker") {
+          onRemoveMarker?.(selectedPrimitive.id);
+        } else if (selectedPrimitive.kind === "room") {
+          onRemoveRoom?.(selectedPrimitive.id);
+        } else {
+          onRemoveSegment?.(selectedPrimitive.id);
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onRemoveSegment, selectedWallId]);
+  }, [editor?.primitives, onRemoveMarker, onRemoveRoom, onRemoveSegment, selectedId, selectedWallId]);
+
+  const getPointerWorldPoint = (stage: import("konva/lib/Stage").Stage): PointM => {
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return { x: 0, y: 0 };
+    const x = (pointer.x - viewport.x) / viewport.scale;
+    const y = (pointer.y - viewport.y) / viewport.scale;
+    return { x: x / PIXELS_PER_METER, y: y / PIXELS_PER_METER };
+  };
 
   // Helper: convert pointer screen position to world-space snapped point
   const getSnappedPointerPoint = (
     stage: import("konva/lib/Stage").Stage
   ): PointM => {
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return { x: 0, y: 0 };
-    const x = (pointer.x - viewport.x) / viewport.scale;
-    const y = (pointer.y - viewport.y) / viewport.scale;
+    const point = getPointerWorldPoint(stage);
     return {
-      x: Math.round(x / SNAP_GRID_M) * SNAP_GRID_M,
-      y: Math.round(y / SNAP_GRID_M) * SNAP_GRID_M,
+      x: Math.round(point.x / SNAP_GRID_M) * SNAP_GRID_M,
+      y: Math.round(point.y / SNAP_GRID_M) * SNAP_GRID_M,
     };
+  };
+
+  const removeDraftSegment = (id: string) => {
+    setUserSegments((prev) => prev.filter((segment) => segment.id !== id));
+    if (selectedWallId === id) setSelectedWallId(null);
+    if (entranceWallId === id) setEntranceWallId(null);
+  };
+
+  const removeDeletionHit = (hit: DeletionHit) => {
+    if (hit.kind === "marker") {
+      onRemoveMarker?.(hit.id);
+    } else if (hit.kind === "room") {
+      onRemoveRoom?.(hit.id);
+    } else if (shouldRenderSavedPrimitives) {
+      onRemoveSegment?.(hit.id);
+    } else {
+      removeDraftSegment(hit.id);
+    }
+    setDrawStart(null);
+    setDrawCurrent(null);
+    onSelectPrimitive?.(null);
   };
 
   // Entrance marker triangle (computed from the entrance wall midpoint)
@@ -661,7 +891,7 @@ export function FloorplanEditor({
       }
       const acceptedRoomIds = new Set(savedRooms.map((room) => room.id));
       setAiSuggestions(
-        result.suggested_labels.filter(
+        semanticSuggestionsFromAnalysis(result).filter(
           (suggestion) =>
             suggestion.bbox.width > 0 &&
             suggestion.bbox.height > 0 &&
@@ -791,6 +1021,43 @@ export function FloorplanEditor({
       {error && <p className="error-text">{error}</p>}
 
       <div className="canvas-shell" data-testid="floorplan-editor">
+        <div className="floorplan-canvas-toolbar" role="toolbar" aria-label={t(language, "tool.title")}>
+          {TOOL_ORDER.map((item) => {
+            const label = t(language, TOOL_LABEL_KEYS[item]);
+            return (
+              <button
+                key={item}
+                type="button"
+                className={item === tool ? "active" : ""}
+                aria-label={label}
+                title={label}
+                aria-pressed={item === tool}
+                onClick={() => onToolChange?.(item)}
+              >
+                <ToolIcon tool={item} />
+              </button>
+            );
+          })}
+          <span className="toolbar-divider" aria-hidden="true" />
+          <button
+            type="button"
+            aria-label={t(language, "tool.undo")}
+            title={t(language, "tool.undo")}
+            disabled={!canUndo}
+            onClick={onUndo}
+          >
+            <ToolIcon tool="undo" />
+          </button>
+          <button
+            type="button"
+            aria-label={t(language, "tool.redo")}
+            title={t(language, "tool.redo")}
+            disabled={!canRedo}
+            onClick={onRedo}
+          >
+            <ToolIcon tool="redo" />
+          </button>
+        </div>
         <Stage
           ref={stageRef}
           width={DEFAULT_CANVAS_SIZE.width}
@@ -825,6 +1092,15 @@ export function FloorplanEditor({
             }
 
             if (tool === "delete") {
+              const hit = nearestDeletionHit(
+                getPointerWorldPoint(stage),
+                shouldRenderSavedPrimitives ? savedRooms : [],
+                shouldRenderSavedPrimitives ? savedSegments : userSegments,
+                savedMarkers
+              );
+              if (hit) {
+                removeDeletionHit(hit);
+              }
               return;
             }
 
@@ -886,12 +1162,18 @@ export function FloorplanEditor({
             }
           }}
           onMouseMove={(e) => {
-            if (!drawStart) return;
             const stage = e.target.getStage();
             if (!stage) return;
+            if (tool === "delete") {
+              setErasePoint(getPointerWorldPoint(stage));
+            } else if (erasePoint) {
+              setErasePoint(null);
+            }
+            if (!drawStart) return;
             const snapped = getSnappedPointerPoint(stage);
             setDrawCurrent(snapped);
           }}
+          onMouseLeave={() => setErasePoint(null)}
         >
           <Layer>
             {/* Layer 1 — Grid */}
@@ -942,6 +1224,12 @@ export function FloorplanEditor({
                         closed
                         onClick={(event) => {
                           event.cancelBubble = true;
+                          if (tool === "delete") {
+                            onRemoveRoom?.(room.id);
+                            setDrawStart(null);
+                            setDrawCurrent(null);
+                            return;
+                          }
                           if (tool !== "select") {
                             return;
                           }
@@ -952,6 +1240,12 @@ export function FloorplanEditor({
                         }}
                         onTap={(event) => {
                           event.cancelBubble = true;
+                          if (tool === "delete") {
+                            onRemoveRoom?.(room.id);
+                            setDrawStart(null);
+                            setDrawCurrent(null);
+                            return;
+                          }
                           if (tool !== "select") {
                             return;
                           }
@@ -1122,9 +1416,7 @@ export function FloorplanEditor({
                 onClick={(e) => {
                   e.cancelBubble = true;
                   if (tool === "delete") {
-                    setUserSegments((prev) => prev.filter((w) => w.id !== wall.id));
-                    if (selectedWallId === wall.id) setSelectedWallId(null);
-                    if (entranceWallId === wall.id) setEntranceWallId(null);
+                    removeDraftSegment(wall.id);
                     setDrawStart(null);
                     setDrawCurrent(null);
                   } else if (tool === "select") {
@@ -1136,9 +1428,7 @@ export function FloorplanEditor({
                 onTap={(e) => {
                   e.cancelBubble = true;
                   if (tool === "delete") {
-                    setUserSegments((prev) => prev.filter((w) => w.id !== wall.id));
-                    if (selectedWallId === wall.id) setSelectedWallId(null);
-                    if (entranceWallId === wall.id) setEntranceWallId(null);
+                    removeDraftSegment(wall.id);
                     setDrawStart(null);
                     setDrawCurrent(null);
                   } else if (tool === "select") {
@@ -1227,6 +1517,20 @@ export function FloorplanEditor({
                 stroke="#f59e0b"
                 strokeWidth={3}
                 dash={[8, 4]}
+                listening={false}
+              />
+            )}
+
+            {tool === "delete" && erasePoint && (
+              <Circle
+                data-testid="delete-radius"
+                x={metersToPixels(erasePoint.x)}
+                y={metersToPixels(erasePoint.y)}
+                radius={metersToPixels(DELETE_RADIUS_M)}
+                fill="#ef4444"
+                opacity={0.12}
+                stroke="#dc2626"
+                strokeWidth={1.5}
                 listening={false}
               />
             )}

@@ -32,7 +32,6 @@ import { ResultsPanel } from "./components/ResultsPanel";
 import { RoomLabelPanel } from "./components/RoomLabelPanel";
 import { ShaMarkerPalette } from "./components/ShaMarkerPalette";
 import { TemporalPanel } from "./components/TemporalPanel";
-import { ToolPanel } from "./components/ToolPanel";
 import { deriveProjectState } from "./lib/derivation";
 import {
   createDongzhaiFloorRequest,
@@ -1316,16 +1315,6 @@ export default function App(): JSX.Element {
                 </button>
               </section>
 
-              <ToolPanel
-                tool={state.tool}
-                onToolChange={(tool) => dispatch({ type: "set_tool", tool })}
-                language={state.language}
-                onUndo={() => dispatch({ type: "undo_editor" })}
-                onRedo={() => dispatch({ type: "redo_editor" })}
-                canUndo={canUndo}
-                canRedo={canRedo}
-              />
-
               <ShaMarkerPalette
                 tool={state.tool}
                 language={state.language}
@@ -1423,6 +1412,12 @@ export default function App(): JSX.Element {
                 onRemoveMarker={(id) => dispatch({ type: "remove_marker", id })}
                 onAddSegment={(segment) => dispatch({ type: "add_segment", segment })}
                 onRemoveSegment={(id) => dispatch({ type: "remove_segment", id })}
+                onRemoveRoom={(id) => dispatch({ type: "remove_room", id })}
+                onToolChange={(tool) => dispatch({ type: "set_tool", tool })}
+                onUndo={() => dispatch({ type: "undo_editor" })}
+                onRedo={() => dispatch({ type: "redo_editor" })}
+                canUndo={canUndo}
+                canRedo={canRedo}
                 onAnnotationsChange={(primitives, entrance, floorplan) => {
                   const nextEditor = { ...state.editor, primitives, entrance, floorplan };
                   dispatch({

@@ -64,6 +64,7 @@ export type AppAction =
   | { type: "set_show_bagua_overlay"; value: boolean }
   | { type: "set_room_label"; id: string; label?: string; roomType?: RoomType }
   | { type: "set_room_type"; id: string; roomType: RoomType }
+  | { type: "remove_room"; id: string }
   | { type: "add_segment"; segment: SegmentPrimitive }
   | { type: "update_segment"; id: string; segment: Partial<Omit<SegmentPrimitive, "id" | "kind">> }
   | { type: "remove_segment"; id: string }
@@ -274,6 +275,12 @@ export function appReducer(state: AppState, action: AppAction): AppState {
             ? { ...primitive, roomType: action.roomType }
             : primitive
         )
+      });
+    case "remove_room":
+      return commitEditorState(state, {
+        ...state.editor,
+        primitives: state.editor.primitives.filter((primitive) => primitive.kind !== "room" || primitive.id !== action.id),
+        selectedId: state.editor.selectedId === action.id ? null : state.editor.selectedId
       });
     case "add_segment":
       return commitEditorState(state, {

@@ -686,6 +686,53 @@ textarea {
   background: rgba(252, 253, 251, 0.9);
 }
 
+.floorplan-canvas-toolbar {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px;
+  border: 1px solid rgba(74, 92, 102, 0.34);
+  border-radius: 8px;
+  background: rgba(250, 252, 249, 0.92);
+  box-shadow: 0 10px 24px rgba(19, 29, 36, 0.14);
+  backdrop-filter: blur(10px) saturate(1.08);
+}
+
+.floorplan-canvas-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0 !important;
+  border-radius: 7px !important;
+  color: #25333b;
+}
+
+.floorplan-canvas-toolbar button.active {
+  border-color: var(--cinnabar-deep);
+  background: linear-gradient(120deg, var(--cinnabar), var(--cinnabar-deep));
+  color: #fff;
+}
+
+.floorplan-canvas-toolbar button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 24px;
+  margin: 0 2px;
+  background: rgba(74, 92, 102, 0.28);
+}
+
 .ai-analysis-overlay {
   position: absolute;
   inset: 0;
